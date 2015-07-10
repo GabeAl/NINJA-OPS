@@ -1,0 +1,3 @@
+Take the greengenes taxa (like 97_otu_taxonomy) and sort it in Xcel by OTU id.
+
+It must be sorted in ascending order (low on top, high on bottom)

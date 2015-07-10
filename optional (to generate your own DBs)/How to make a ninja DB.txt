@@ -1,0 +1,5 @@
+Use ninja_prep on something like greengene's 97_otus_unal.fasta
+
+You can specify ranges, sorts, etc in the commandlines. In recent bowtie2, no tweaks seem to deliver better results than just passing the whole shebang through.
+
+Region trimming for V4 (EMP primers?) and V3 built-in for greengenes 13_8 97% only.
