@@ -10,7 +10,7 @@ as fast reverse complementing, base pair trimming, and a specialized denoising t
 
 Moreover, NINJA is entirely free and open source. 
 
-The latest NINJA version can always be found on Github (https://github.umn.edu/algh0022/NINJA-OPS).
+The latest NINJA version can always be found on Github (https://github.umn.edu/algh0022/NINJA-OPS or https://github.com/GabeAl/NINJA-OPS).
 
 
 
