@@ -1,0 +1,8 @@
+Where to get Bowtie2 (2.2.5 as of time of writing)
+--------------------------------------------------
+
+http://sourceforge.net/projects/bowtie-bio/files/bowtie2/2.2.5/
+
+1. Download the appropriate package for your system from the above URL (not source).
+2. Extract the bowtie2-align-s file from the archive into the main NINJA directory (the directory that contains this file).
+3. If using linux, rename the extracted bowtie2-align-s to bowtie2-align-s-linux
