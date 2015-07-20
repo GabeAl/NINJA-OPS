@@ -96,11 +96,11 @@ inline void vecswap(char ***a, int i, int j, int n)
 	{ while (n-->0) swap(a, i++, j++); }
 
 // Specialized qcomp comparator functions for pointer indexing
-inline int xcmp(str1, str2) register const char *str1, *str2; {
+int xcmp(register const char *str1, register const char *str2) {
 	while (*str1 == *str2++) if (!*str1++) return 0; 
 	return (*(const unsigned char *)str1 - *(const unsigned char *)(str2 - 1));
 }
-inline int ycmp(str1, str2) register const char *str1, *str2; {
+int ycmp(register const char *str1, register const char *str2) {
 	while (*str1 == *str2++) if (!*str1++) return 0; 
 	return *str1 && *(str2 - 1); //(*(const unsigned char *)str1 - *(const unsigned char *)(str2 - 1));
 }
@@ -257,7 +257,7 @@ void testWord() {
 int main( int argc, char *argv[] )
 {
 	// Requires 3 parameters for execution. Else, displays below info
-	if ( argc < 4 || argc > 7 ) PRINT_USAGE();
+	if ( argc < 4 || argc > 8 ) PRINT_USAGE();
 	PREP_WORDS(); // Prepares for kmer denoising by creating WORDTYPE objects
 	// Flags for optional arguments
 	int doRC = 0, trim = 0; 
@@ -507,7 +507,8 @@ int main( int argc, char *argv[] )
 
 	// Stores occurances of words meeting rarity threshold
 	unsigned wBad = 0; 
-	int (*cmpF)(const char *, const char *) = copyNumThres ? ycmp : xcmp;
+	int (*cmpF)(register const char *, register const char *) = copyNumThres ? &ycmp : &xcmp;
+	//int *cmpF = copyNumThres ? ycmp(const char *, const char *) : xcmp(const char *, const char *);
 	if (!copyNumThres) copyNumThres = filt_i ? -1u : 1;
 	size_t numUniq_mx = numUniq - 1;
 	

@@ -1,0 +1,30 @@
+Total short reads: 1337
+Unique samples: 9
+Dupes: 395, total copies: 1337 (100.000000%)
+Optimized fasta written.
+942 reads; of these:
+  942 (100.00%) were unpaired; of these:
+    942 (100.00%) aligned 0 times
+    0 (0.00%) aligned exactly 1 time
+    0 (0.00%) aligned >1 times
+0.00% overall alignment rate
+Legacy output mode toggled.
+Opened /Users/knightslab/Dropbox/PROJECTS/Bioinformatics/ninja_package/ninja_output/otutable.biom for OTU Table writing
+Total OTUs available: 99322
+Number of unique samples: 9, max reads: 942
+Total reads expanded: 0
+Run complete.
+
+Ninja filter time: 0.0077748298645
+/Users/knightslab/Dropbox/PROJECTS/Bioinformatics/ninja_package/bowtie2 --no-head --no-unal -x /Users/knightslab/Dropbox/PROJECTS/Bioinformatics/ninja_package/bt2db/Ninja97 -S /Users/knightslab/Dropbox/PROJECTS/Bioinformatics/ninja_package/ninja_output/alignments.txt --np 0 --mp "1,1" --rdg "0,1" --rfg "0,1" --score-min "L,0,-0.03" -k 1 --norc -f /Users/knightslab/Dropbox/PROJECTS/Bioinformatics/ninja_package/ninja_output/filtered_sequences.fa -p 4
+Bowtie time: 0.260893821716
+Ninja parse time: 0.0608088970184
+
+Searching for failed sequences and generating OTU map...
+OTU Map generated. A total of 0 sequences were recovered.
+Writing files...
+Post-processing time: 0.06334400177
+Cleaning up output...
+Done.
+Clean-up time: 5.00679016113e-06
+Total time: 0.393520832062

@@ -11,6 +11,7 @@
    Use:     -m64 -Ofast -fwhole-program parse.c -fprofile-generate [-fprofile-use]
    Profile: -m64 -Ofast -D PROFILE -flto parse.c
    Debug:   -m64 -D DEBUG -D PROFILE -ggdb
+   More -D: LOGMATCHES (produces parseLog.txt and map_seqid_reps.txt)
 */
    
 #include <stdio.h>
