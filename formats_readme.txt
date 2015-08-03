@@ -1,6 +1,6 @@
 FORMATS README
 --------------
-There are some rules regarding expected forms in NINJA. All FASTA files must be formatted with a header line, followed by
+There are some rules regarding formatting in NINJA. All FASTA files must be formatted with a header line, followed by
 the newline character (\n), followed by the sequence in uppercase or lowercase without any additional newlines or line
 breaks, followed by the next header starting with ">", and so on until the end of the file, which terminates in a newline
 (\n). 
