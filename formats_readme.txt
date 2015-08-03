@@ -18,6 +18,7 @@ yet supported.
 For example:
 >330201
 
+Header formatting instructions -- QUERIES/READS:
 Headers are formatted according to QIIME protocol. That is, minimally, in the format SAMPLENAME_SEQNUMBER [extra info].
 For example, the first sequence header may look like the following:
 >100217.1246514_0 A222Y121112:1:1101:10003:15638/1 orig_bc=AAAAAAAAAAAA new_bc=AAAAAAAAAAAA bc_diffs=0
