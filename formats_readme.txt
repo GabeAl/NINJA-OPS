@@ -1,6 +1,9 @@
 FORMATS README
 --------------
-There are some rules regarding expected forms in NINJA. All FASTA files must be formatted with a header line, followed by the newline character (\n), followed by the sequence in uppercase or lowercase without any additional newlines or line breaks, followed by the next header starting with ">", and so on until the end of the file, which terminates in a newline (\n). 
+There are some rules regarding expected forms in NINJA. All FASTA files must be formatted with a header line, followed by
+the newline character (\n), followed by the sequence in uppercase or lowercase without any additional newlines or line
+breaks, followed by the next header starting with ">", and so on until the end of the file, which terminates in a newline
+(\n). 
 For example:
 >Header
 SEQUENCE WITHOUT LINE BREAKS
@@ -10,7 +13,8 @@ SEQUENCE2 WITHOUT LINE BREAKS
 [blank end line]
 
 Header formatting instructions -- DATABASE:
-Database headers must be positive integer numbers in the QIIME OTU format. String headers for database entries are not yet supported.
+Database headers must be positive integer numbers in the QIIME OTU format. String headers for database entries are not
+yet supported.
 For example:
 >330201
 
