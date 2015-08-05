@@ -37,8 +37,12 @@
 	return 1; \
 }
 
-
-
+/** 
+ *  Utility functions
+ */
+ 
+ // String comparison functions. The first returns -1, 0, and 1 only as <, ==, >
+ // Second reports magnitude of difference from point of divergence
 inline int ycmp(st1p, st2p) register const char *st1p, *st2p; { 
 	while (*st1p && *st2p && *st1p++ == *st2p++); 
 	return *--st1p<*--st2p?-1:(*st1p>*st2p); 
@@ -48,6 +52,7 @@ inline int xcmp(str1, str2) register const char *str1, *str2; {
 	return (*(const unsigned char *)str1 - *(const unsigned char *)(str2 - 1));
 }
 
+// Resizes array without realloc: unsigned (top) and string (bottom)
 inline int res_unsigned_arr(unsigned **arr, unsigned oldS, unsigned newS) {
 	unsigned *newArray = malloc(newS * sizeof(unsigned int)), 
 		*nap = newArray, *oap = *arr;
@@ -65,22 +70,26 @@ inline int res_str_arr(char ***arr, unsigned oldS, unsigned newS) {
 	return (*arr = newArray) - addr;
 }
 
+// Bubbling comparison of characters
 int cmpS(const void *v1, const void *v2) {
 	const char i1 = **(const char **)v1;
 	const char i2 = **(const char **)v2;
 	return i1<i2?-1:(i1>i2);
 }
-int cmp(const void *v1, const void *v2) {
-	const char *i1 = **(const char ***)v1;
-	const char *i2 = **(const char ***)v2;
-	return xcmp(i1,i2);
-}
+// Bubbling comparison of integers
 int cpx(const void *v1, const void *v2) {
 	const int i1 = *(const int *)v1;
 	const int i2 = *(const int *)v2;
 	return i1<i2?-1:(i1 > i2);
 }
+// Wrapper for xcmp
+int cmp(const void *v1, const void *v2) {
+	const char *i1 = **(const char ***)v1;
+	const char *i2 = **(const char ***)v2;
+	return xcmp(i1,i2);
+}
 
+// Wide binary search: uncovers range of result rather than single result
 inline unsigned int uWBS(unsigned *ixList, unsigned key, unsigned range) {
 	// wide binary search index list for correct OTU 
 	unsigned middle, low = 0, high = range;
@@ -94,7 +103,45 @@ inline unsigned int uWBS(unsigned *ixList, unsigned key, unsigned range) {
 	return middle;
 }
 
-// file is closed after running
+// Opens tax map from file handle with the given delimiter and outputs numbers to 
+// Col1 array and strings to Col2. File is closed after running.
+int parse_string_map(FILE * fp, char delim, unsigned ** Col1, char *** Col2) {
+	// treat the file to a full read-in and caching
+	fseek(fp, 0, SEEK_END); unsigned ixSize = ftell(fp); fseek(fp, 0, SEEK_SET); 
+	char *ixStr = malloc(ixSize + 1); // *ixStrp = ixStr; 
+	if (!ixStr) { puts("PSM out of memory.\n"); return 0; }
+	fread(ixStr, ixSize, 1, fp); fclose(fp);
+	unsigned ilines = 0; char *iix = ixStr - 1, iptr;
+	while (iptr = *++iix) iptr != '\n' ?: ++ilines;
+	
+	// Grab values in 'Col1[delim]Col2[\n]' format
+	*Col1 = malloc(ilines * sizeof(unsigned int)); 
+	*Col2 = malloc(ilines * sizeof(char *));
+	if (!*Col1 || !*Col2) { puts("PSM out of memory.\n"); return 0; }
+	unsigned *Col1p = *Col1; char **Col2p = *Col2;
+		
+	int which = 0; // here 0 is the Col1 field and !0 is the Col2 field
+	char *buffer = malloc(1024), *bufp = buffer;
+	iix = ixStr;
+	char c; while (c=*iix++) {
+		if (c=='\n' || c==delim) { // commit, switch buffer pointer
+			memset(bufp,'\0',1);
+			if (!which) *Col1p++ = atoi(buffer);
+			else {
+				int amt; *Col2p = malloc(amt = strlen(buffer)+1);
+				if (!*Col2p) return 0; 
+				strncpy(*Col2p++, buffer, amt);
+			}
+			which ^= 1; bufp = buffer; 
+		}
+		else *bufp++ = c;
+	}
+	free(ixStr);
+	return ilines;
+}
+
+// Opens int map from file handle with the given delimiter and first col numbers to 
+// Col1 array and second column numbers to Col2. File is closed after running.
 int parse_unsigned_map(FILE * fp, char delim, unsigned ** Col1, unsigned ** Col2) {
 	// treat the file to a full read-in and caching
 	fseek(fp, 0, SEEK_END); unsigned ixSize = ftell(fp); fseek(fp, 0, SEEK_SET); 
@@ -125,6 +172,8 @@ int parse_unsigned_map(FILE * fp, char delim, unsigned ** Col1, unsigned ** Col2
 	return ilines;
 }
 
+// Opens a file handle (from fopen) and outputs the string to the given address. 
+// Returns number of lines. 
 int parse_strings(FILE *fp, char *** Strings) {
 	fseek(fp, 0, SEEK_END); unsigned ixSize = ftell(fp); fseek(fp, 0, SEEK_SET); 
 	char *Dump = malloc(ixSize + 1); 
@@ -151,46 +200,25 @@ int parse_strings(FILE *fp, char *** Strings) {
 	*Strings = realloc(*Strings, ilines * sizeof( char **));
 	return ilines;
 }
-// file is closed after running
-int parse_string_map(FILE * fp, char delim, unsigned ** Col1, char *** Col2) {
-	// treat the file to a full read-in and caching
-	fseek(fp, 0, SEEK_END); unsigned ixSize = ftell(fp); fseek(fp, 0, SEEK_SET); 
-	char *ixStr = malloc(ixSize + 1); // *ixStrp = ixStr; 
-	if (!ixStr) { puts("PSM out of memory.\n"); return 0; }
-	fread(ixStr, ixSize, 1, fp); fclose(fp);
-	unsigned ilines = 0; char *iix = ixStr - 1, iptr;
-	while (iptr = *++iix) iptr != '\n' ?: ++ilines;
-	
-	// grab values in 'Col1[delim]Col2[\n]' format
-	*Col1 = malloc(ilines * sizeof(unsigned int)); 
-	*Col2 = malloc(ilines * sizeof(char *));
-	if (!*Col1 || !*Col2) { puts("PSM out of memory.\n"); return 0; }
-	unsigned *Col1p = *Col1; char **Col2p = *Col2;
-		
-	int which = 0; // here 0 is the Col1 field and !0 is the Col2 field
-	char *buffer = malloc(1024), *bufp = buffer;
-	iix = ixStr;
-	char c; while (c=*iix++) {
-		if (c=='\n' || c==delim) { // commit, switch buffer pointer
-			memset(bufp,'\0',1);
-			if (!which) *Col1p++ = atoi(buffer);
-			else {
-				int amt; *Col2p = malloc(amt = strlen(buffer)+1);
-				if (!*Col2p) return 0; 
-				strncpy(*Col2p++, buffer, amt);
-			}
-			which ^= 1; bufp = buffer; 
-		}
-		else *bufp++ = c;
-	}
-	free(ixStr);
-	return ilines;
-}
 
+
+
+/** 
+ *  Main parsing algorithm.
+ *  INPUT     seqsDBFile:       db file output from ninja_filter
+ *            alignmentsFile:   alignment file output from bowtie2
+ *            masterDBFile:     master db file packaged with ninja
+ *            taxMapFile:       reference taxonomy map packaged with ninja
+ *  OUTPUT    otuTableFile:     OTU table output that's really the point of all this
+ *  AUTO      legacyTable:      OTU table in legacy format, output automatically
+ *            parseLog:         a utility file containing parsed sequences, used in post-processing and output automatically
+ **/
 int main ( int argc, char *argv[] )
 {
+	// Starts timer for profiling
 	clock_t start;
 	start = clock();
+	// Checks supported number of args specified
 	if ( argc < 5 || argc > 7 ) SHOW_USAGE();
     int argx = argc, legacy = 0;
 	if (!strcmp(argv[argc-1],"--legacy")) {
@@ -198,9 +226,9 @@ int main ( int argc, char *argv[] )
 		legacy = 1;
 		--argx;
 	}
-	
+	// Controls whether taxonomy will be considered
     int doTaxmap = (argx == 6) ?: 0;
-	// We assume argv[n] are filenames to open, in the order specified.
+	// Assumes argv[n] are filenames to open, in the order specified.
 	FILE *mfp = fopen( argv[1], "rb" );
 	FILE *ifp = fopen( argv[2], "rb" ), *ifi = fopen( argv[3], "rb"), 
 		 *ofp = fopen( argv[doTaxmap ? 5 : 4], "wb"), *itx = 0;
@@ -210,26 +238,28 @@ int main ( int argc, char *argv[] )
 		fprintf(stderr, "Could not open one or more files.\n");
 		SHOW_USAGE();
 	}
+	// Parse the loaded files: sample file is "pre-parsed" in raw string form
 	unsigned *OtuList, *ixList,
 		ilines = parse_unsigned_map(ifi, ',', &ixList, &OtuList);
 	char **OtuMap_taxa, **SampDBdump; 
 	unsigned *OtuMap_otus, blines = doTaxmap ? 
 		parse_string_map(itx, '\t', &OtuMap_otus, &OtuMap_taxa) : 0;
 	printf("Total OTUs available: %u\n", ilines);
+	
+	// Parse samples from pre-parsed sample file
 	unsigned slines = parse_strings(mfp, &SampDBdump);
 	if (!ilines || (doTaxmap && !blines) || !slines) 
 		{ printf("Unparsable: ilines %u, blines %u, slines %u.\n",ilines, blines, slines); return 1; }
 #ifdef PROFILE
 	printf("->Time for list parse: %f\n", ((double) (clock() - start)) / CLOCKS_PER_SEC); start = clock();
 #endif
-	
-	unsigned numSamps = atoi(*SampDBdump++), numReads = slines - numSamps - 1; // max
+	unsigned numSamps = atoi(*SampDBdump++), numReads = slines - numSamps - 1; // max reads possible
 	char **Seq2samp = SampDBdump + numSamps;
 	printf("Number of unique samples: %u, max reads: %u\n", numSamps, numReads);
-	//printf("first seq 2 samp: %s\n", Seq2samp[0]);
-	/// Process SAM file
+	
+	// Processes SAM file generated from bowtie
 	fseek(ifp, 0, SEEK_END); size_t fsize = ftell(ifp); fseek(ifp, 0, SEEK_SET); 
-	char *string = malloc(fsize + 1); // allocate a block of memory (direct bytes)
+	char *string = malloc(fsize + 1); // Allocates a block of memory (direct bytes)
 	if (string == NULL) {
 		fprintf(stderr, "Insufficient memory for caching input file.\n");
 		return 1;
@@ -240,14 +270,15 @@ int main ( int argc, char *argv[] )
 #ifdef PROFILE
 	printf("->Time for read-in: %f\n", ((double) (clock() - start)) / CLOCKS_PER_SEC); start = clock();
 #endif
-	
+	// Create OTU table counts matrix
 	unsigned *OtuTable = calloc(numSamps * ilines, sizeof (unsigned)), otuIX;
 	if (!OtuTable) {printf("couldn't allocate OTU table.\n"); return 1;}
 	unsigned tabs, rix, six, cnt, alignPos, totalReadsCnt = 0;
 	char *cix = string - 1, *startS, *curSamp; 
+// Lots each match and duplication count to a separate, fixed filename in the directory
 #ifdef LOGMATCHES
-	FILE *log = fopen("parseLog.txt", "wb"); //deleteme
-	FILE *log2 = fopen("map_seqid_reps.txt", "wb"); //deleteme
+	FILE *log = fopen("parseLog.txt", "wb");
+	FILE *log2 = fopen("map_seqid_reps.txt", "wb");
 #endif
 	unsigned lcounter = 0;
 	while (*++cix) { // != '\t' && *cix != '\n') { // work through the sample string
@@ -279,7 +310,7 @@ int main ( int argc, char *argv[] )
 			totalReadsCnt += cnt;
 		} while (*++curSamp);
 #ifdef LOGMATCHES
-		fprintf(log2, "%u\t%u\n", rix, amt); // deleteme
+		fprintf(log2, "%u\t%u\n", rix, amt); 
 #endif
 		while (*++cix != '\n');
 	}
@@ -287,35 +318,33 @@ int main ( int argc, char *argv[] )
 	printf("->Time for matrix generation: %f\n", ((double) (clock() - start)) / CLOCKS_PER_SEC); start = clock();
 #endif
 	printf("Total reads expanded: %d\n", totalReadsCnt);
-	//return 0;
-	/// Legacy table write
+	// Legacy table format output handler
 	if (legacy) {
-		// Write headers in OTU table format
+		// Prints sample and taxonomy header
 		fprintf(ofp, "#OTU ID");
 		char **SampP = SampDBdump - 1;
 		unsigned *OtuP = OtuList - 1;
 		cnt = numSamps; do fprintf(ofp,"\t%s",*++SampP); while (--cnt);
 		if (doTaxmap) fprintf(ofp,"\ttaxonomy");
 		unsigned i, *row, *rowP;
-			
-
-			
-			for (i = 0; i < ilines; i++) {
-				//screen if any numbers in this row
-				row = OtuTable + i*numSamps; rowP = row;
-				cnt = numSamps; do if (*rowP++) break; while (--cnt);
-				++OtuP;
-				if (cnt) {
-					fprintf(ofp, "\n%u", *OtuP);
-					rowP = row; cnt = numSamps; 
-					do fprintf(ofp, "\t%u", *rowP++); while (--cnt);
-					if (doTaxmap) 
-						fprintf(ofp,"\t%s", 
-							*(OtuMap_taxa + uWBS(OtuMap_otus, *(OtuList + i), blines)));
+		// Print taxonomy values
+		for (i = 0; i < ilines; i++) {
+			// Screens if any numbers in this row
+			row = OtuTable + i*numSamps; rowP = row;
+			cnt = numSamps; do if (*rowP++) break; while (--cnt);
+			++OtuP;
+			if (cnt) {
+				fprintf(ofp, "\n%u", *OtuP);
+				rowP = row; cnt = numSamps; 
+				do fprintf(ofp, "\t%u", *rowP++); while (--cnt);
+				if (doTaxmap) 
+					fprintf(ofp,"\t%s", 
+						*(OtuMap_taxa + uWBS(OtuMap_otus, *(OtuList + i), blines)));
 				}
 			}
 		}
-		else { // BIOM format
+		// BIOM format output handler
+		else { 
 			time_t t = time(NULL);
 			struct tm tm = *localtime(&t);
 			fprintf(ofp, "{\n\"id\":null,\n\"format\": \"NINJA-BIOM " NINJA_VER "(BIOM 1.0)\",\n"
@@ -364,16 +393,6 @@ int main ( int argc, char *argv[] )
 			unsigned i, j; // *row, *rowP;
 			//*OtuP = OtuList - 1;
 			for (i = 0; i < ilines; i++) for (j = 0; j < numSamps; j++) {
-				//screen if any numbers in this row
-				//row = OtuTable + i*numSamps; rowP = row;
-				//ix = numSamps; do if (*rowP++) break; while (--ix);
-				//++OtuP;
-				
-				/* if (ix) {
-					fprintf(ofp, "\n%u", *OtuP);
-					rowP = row; ix = numSamps; 
-					do fprintf(ofp, "\t%u", *rowP++); while (--ix);
-				} */
 				if (OtuTable[i * numSamps + j]) 
 					fprintf(ofp, "[%u,%u,%u],\n\t", i, j, OtuTable[i * numSamps + j]);
 			}
