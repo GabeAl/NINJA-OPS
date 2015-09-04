@@ -5,7 +5,6 @@ import subprocess
 import sys
 import shutil
 
-
 ###
 #   GLOBAL VARIABLES
 ###
@@ -20,9 +19,10 @@ ninjaFilterFile = ""
 bowtie2File = ""
 ninjaParseFile = ""
 
-# Stores booleans for subprocess shell args, depending on the OS, and verbose output 
+# Stores booleans for subprocess shell args, depending on the OS, verbose output and input fasta correction 
 shellBool = False
 verbose = True
+inputFastaCorrected = False
 
 
 ###
@@ -41,7 +41,7 @@ def get_args(p):
                    type = str,
                    default = None,
                    metavar = '',
-                   help = "Output folder for failed sequences and OTU map (default /ninja_output)")
+                   help = "Output folder (default /ninja_output)")
     p.add_argument("-t", "--trim",
                    type = int,
                    default = -1,
@@ -51,7 +51,7 @@ def get_args(p):
                    type = float,
                    default = 0.97,
                    metavar = '',
-                   help = "Minimum percent similarity between query sequence and reference sequence (default 97%%)")
+                   help = "Minimum percent similarity - id - between query sequence and reference sequence (default 97%%)")
     p.add_argument("-p", "--threads",
                    type = int,
                    default = 4,
@@ -84,17 +84,58 @@ def check_args(args, p):
     if args['input'] is None:
         p.print_help()
         sys.exit('\nPlease include an input sequences file in fasta format.')
+    
+    # Checks if input sequences fasta is correctly formatted. Writes correct one if not
+    else:
+        fileName = args['input']
+        if not check_fasta(open(fileName)):
+            print("ERROR: Input fasta formatted incorrectly for QIIME, e.g. sequences or title on multiple lines. Writing " + \
+                  "corrected file in current working directory. File automatically moved to output folder after NINJA runs.")
+            with open(fileName) as f:
+                write_fasta(read_fasta(f), "formatted_input_fasta")
+                args['input'] = "formatted_input_fasta.fna"
+            global inputFastaCorrected
+            inputFastaCorrected = True
 
     # Sets default output folder if user doesn't specify
     if args['output'] is None:
         args['output'] = "ninja_output"
 
-# Generator for fasta files - returns (name, seq)
+# Checks if an input fasta file is formatted correctly for QIIME. Returns boolean.
+# Looks for data or titles with multiple lines and improper characters in seqs.
+# Makes sure first line is a header. Doesn't allow spaces in seqs.
+def check_fasta(f):
+    lineNumber = 1
+    inData = True
+    seqChars = ['A', 'T', 'G', 'C', 'N', '\n']
+    for line in f:
+        if line[0] == ">":
+            if inData:
+                inData = False
+            else:
+                print "ERROR: Multiline title in line " + str(lineNumber) + " of input fasta."
+                return False
+        else:
+            # Checks if line is actually a title
+            for ch in line:
+                c = ch.upper()
+                if c not in seqChars:
+                    print 'ERROR: Unsupported sequence character "' + c + '" in line ' + str(lineNumber) + ' of input fasta.'
+                    return False
+            if not inData:
+                inData = True
+            else:
+                print "ERROR: Multiline sequence in line " + str(lineNumber) + " of input fasta."
+                return False
+        lineNumber += 1
+    return True
+
+# Generator for fasta files - returns [(name, seq)]
 # Call using 'with open(file) as f'
-def read_fasta(fileHandle):
+def read_fasta(f):
     title = None
     data = None
-    for line in fileHandle:
+    for line in f:
         if line[0]==">":
             if title != None:
                 yield (title,data)
@@ -112,16 +153,19 @@ def write_fasta(listOfTuples, fileName):
     if fileName.find(".",0) == -1:
         fileName += ".fna"
     for data in listOfTuples:
-        output += (">" + data[0].strip() + "\n")
+        title = data[0].strip()
+        if title[0] != ">":
+            title = ">" + title
+        output += (title + "\n")
         output += (data[1] + "\n")
-    with open(fileName, 'w') as outFile:
+    with open(fileName, 'wb') as outFile:
         outFile.write(output)
 
 # Takes a dict[OTU, IDs...] and prints as an OTU map to the given filename
-def write_map(map, fileName):
-    with open(fileName, 'w') as outFile:
-        for k in map:
-            outFile.write(k + "\t" + map[k] + "\n")
+def write_map(otuMap, fileName):
+    with open(fileName, 'wb') as outFile:
+        for k in otuMap:
+            outFile.write(k + "\t" + otuMap[k] + "\n")
 
  # Returns reverse complement of a DNA seq
 def reverse_complement(seq): return complement(seq[::-1])
@@ -175,9 +219,6 @@ def ninja_filter(inputSeqsFile, filteredSeqsFile, seqsDBFile, trim, RC, denoisin
         argTrim = str(trim)
     if RC:
         argRC = "RC"
-    if denoising:
-        pass
-        #argDenoising = "D " + str(denoising)
 
     # Runs ninja_filter. Run in shell only on Mac
     cmd = ""
@@ -243,7 +284,7 @@ def bowtie2(filteredSeqsFile, alignmentsFile, bowtieDatabase, similarity, thread
             error(e, msg = "ERROR: Bowtie2 failed. Exiting.", exit = True)
     return cmd
 
-# Runs ninja_parse_filtered. Moves parse log and legacy table to output folder
+# Runs ninja_parse_filtered.
 # INPUT     seqsDBFile:       db file output from ninja_filter
 #           alignmentsFile:   alignment file output from bowtie2
 #           masterDBFile:     master db file packaged with ninja
@@ -342,11 +383,12 @@ def process(inputSeqsFile, filteredSeqsFile, parseLogFile, seqOutFile, mapOutFil
         error(e, msg = "ERROR: Writing to files failed. Exiting.", exit = True)
 
 # Performs housekeeping on files, deleting the intermediate ones listed below
-# INPUT     filteredSeqsFile:   seqs with duplicates removed output from ninja_filter
+# INPUT     inputSeqsFile:      original file of sequences passed to ninja_filter (.fna, .fasta)
+#           filteredSeqsFile:   seqs with duplicates removed output from ninja_filter
 #           seqsDBFile:         db file output from ninja_filter
 #           alignmentsFile:     main output of bowtie2
 #           parseLogFile:       parse log generated from ninja_parse_filter
-def clean(filteredSeqsFile, seqsDBFile, alignmentsFile, parseLogFile):
+def clean(inputSeqsFile, filteredSeqsFile, seqsDBFile, alignmentsFile, parseLogFile):
     if verbose: print("Cleaning up output...")
     try:
         global out
@@ -356,10 +398,17 @@ def clean(filteredSeqsFile, seqsDBFile, alignmentsFile, parseLogFile):
         os.remove(parseLogFile)
         os.remove("map_seqid_reps.txt")
 
+        # Moves corrected input sequences file to output if it was written
+        global inputFastaCorrected
+        if inputFastaCorrected:
+            global out
+            newInputSeqsFile = os.path.join(out, inputSeqsFile).replace("\\", "/") 
+            os.rename(inputSeqsFile, newInputSeqsFile)
+
         # Deletes ninja log if quiet enabled
         if not verbose: os.remove(ninjaLog)
     except OSError as e:
-        error(e, msg = "INTERNAL ERROR: Can't find all files marked for deletion. Check working directory, ninja_package and output.")
+        error(e, msg = "INTERNAL ERROR: Can't find all files marked for moving and/or deletion. Check working directory and output folder.")
     if verbose: print("Done.")
 
 # Runs ninja, bowtie2 and then processes output. All files output in specified output folder. 
@@ -384,36 +433,39 @@ def main(inputSeqsFile, folder, trim, RC, similarity, threads, mode, denoising, 
     console = sys.stdout
     ninjaLog = os.path.join(out, "ninja_log.txt").replace("\\", "/") 
     sys.stdout = open(ninjaLog, 'w')
+        
+    global shellBool
+    osName = sys.platform
+    shellBool= not (osName.startswith("win32") or osName.startswith("cygwin"))
 
     # Checks for bowtie2 file if not in ninja_package.
     global bowtie2File
-    bowtie2File = os.path.abspath(os.path.join(ninjaDirectory, "bowtie2-align-s")).replace("\\", "/")
-    if not os.path.exists(bowtie2File):
-        error(e = None, msg = "ERROR: Bowtie2 executable not found. Please move bowtie2-align-s to ninja_package (not a subfolder). " + \
+    bowtie2File = "bowtie2-align-s"
+    # find out if bowtie2 is in the system path
+    try:
+        subprocess.check_call(bowtie2File + " --version", shell = shellBool, stdout = sys.stdout)
+    except OSError as e:
+        bowtie2File = os.path.abspath(os.path.join(ninjaDirectory, "bowtie2-align-s")).replace("\\", "/")
+        if not os.path.exists(bowtie2File):
+            error(e = None, msg = "ERROR: Bowtie2 executable not found in system path or top-level NINJA package folder. Please install bowtie2 and add its accompanying executables to the system path or place bowtie2-align-s in the top-level ninja package folder (not a subfolder). " + \
                               "Check README.txt for additional instructions. Exiting.", exit = True)
-        
+
     # Sets the relevant globals and binaries for mac and windows support. Linux upcoming
     global ninjaFilterFile
     global ninjaParseFile
-    global shellBool
     global verbose
     verbose = verboseBool
-    osName = sys.platform
     if osName.startswith("darwin") or osName.startswith("os"):			# Mac
     	ninjaFilterFile = os.path.join(ninjaDirectory, os.path.join("bin", "./ninja_filter_mac")).replace("\\", "/") 
     	ninjaParseFile = os.path.join(ninjaDirectory, os.path.join("bin", "./ninja_parse_filtered_mac")).replace("\\", "/") 
-        shellBool = True
     elif osName.startswith("win32") or osName.startswith("cygwin"):		# Windows and cygwin
     	ninjaFilterFile = os.path.join(ninjaDirectory, os.path.join("bin", "ninja_filter.exe")).replace("\\", "/") 
     	ninjaParseFile = os.path.join(ninjaDirectory, os.path.join("bin", "ninja_parse_filtered.exe")).replace("\\", "/")
         bowtie2File = bowtie2File + ".exe"
-        shellBool = False
     else:   # Linux
         ninjaFilterFile = os.path.join(ninjaDirectory, os.path.join("bin", "./ninja_filter_linux")).replace("\\", "/") 
         ninjaParseFile = os.path.join(ninjaDirectory, os.path.join("bin", "./ninja_parse_filtered_linux")).replace("\\", "/")
-        bowtie2File = bowtie2File + "-linux"
-        shellBool = True
-        
+
 
         # Sets variables used in ninja calls. First, ninja_filter files
     filteredSeqsFile = os.path.join(out, "filtered_sequences.fa").replace("\\", "/") 
@@ -452,7 +504,7 @@ def main(inputSeqsFile, folder, trim, RC, similarity, threads, mode, denoising, 
         print("Post-processing time: " + str(t4.timeit(1)))
     else:
         t4.timeit(1)
-    t5 = timeit.Timer(lambda: clean(filteredSeqsFile, seqsDBFile, alignmentsFile, parseLogFile))
+    t5 = timeit.Timer(lambda: clean(inputSeqsFile, filteredSeqsFile, seqsDBFile, alignmentsFile, parseLogFile))
     if verbose: 
         print("Clean-up time: " + str(t5.timeit(1)))
     else:
