@@ -42,6 +42,11 @@ def get_args(p):
                    default = None,
                    metavar = '',
                    help = "Output folder (default /ninja_output)")
+    p.add_argument("-b", "--database",
+                   type = str,
+                   default = 'greengenes97',
+                   metavar = '',
+                   help = "Name of database folder in ninja top-level directory; folder must contain bowtie2 index with basename the same as the folder, a taxonomy file named basename.taxonomy, and a ninja db map (output from ninja_prep) named basename.db [default greengenes97]")
     p.add_argument("-t", "--trim",
                    type = int,
                    default = -1,
@@ -68,6 +73,12 @@ def get_args(p):
                    metavar = '',
                    help = "For argument X.Y, discards all reads that appear less than X times and all kmers that appear" + \
                           " less than Y times unless kmers in reads that appear more than X times (default 0.0001)")
+    p.add_argument("-P", "--print_only",
+                   action = 'store_true',
+                   help = "Print commands only - do not run [default False]")
+    p.add_argument("-S", "--stdout",
+                   action = 'store_true',
+                   help = "Print output to stdout instead of log file [default False]")
     p.add_argument("-r", "--reverse_complement",
                    action = 'store_true',
                    help = "Flags sequences for reverse complementing (default no reverse complement)")
@@ -226,6 +237,7 @@ def ninja_filter(inputSeqsFile, filteredSeqsFile, seqsDBFile, trim, RC, denoisin
         global shellBool
         cmd = ninjaFilterFile + ' ' + inputSeqsFile + ' ' + filteredSeqsFile + ' ' + seqsDBFile + ' ' + argTrim + \
               ' ' + argRC + ' ' + argDenoising
+        print cmd
         subprocess.check_call(cmd, shell = shellBool, stdout = sys.stdout)
     except subprocess.CalledProcessError as e:
         error(e, msg = "ERROR: Filtering failed. Check input FASTA formatting and input file locations. Exiting.", exit = True)
@@ -258,6 +270,7 @@ def bowtie2(filteredSeqsFile, alignmentsFile, bowtieDatabase, similarity, thread
             cmd = bowtie2File + ' --no-head --no-unal -x ' + bowtieDatabase +  ' -S ' + alignmentsFile + \
                 ' --np 0 --mp "1,1" --rdg "0,1" --rfg "0,1" --score-min "L,0,-' + str(similarity) + \
                 '" -k 1 --norc -f ' + filteredSeqsFile + ' -p ' + str(threads)
+            print cmd
             subprocess.check_call(cmd, shell = shellBool, stderr = sys.stdout)
         except subprocess.CalledProcessError as e:
             print(e.cmd)
@@ -268,6 +281,7 @@ def bowtie2(filteredSeqsFile, alignmentsFile, bowtieDatabase, similarity, thread
             cmd = bowtie2File + ' --no-head --no-unal -x ' + bowtieDatabase + ' -S ' + alignmentsFile + \
                 ' --np 0 --mp "1,1" --rdg "0,1" --rfg "0,1" --score-min "L,0,-' + str(similarity) + \
                 '" -k 1 --norc -f ' + filteredSeqsFile + ' -p ' + str(threads) + ' --fast'
+            print cmd
             subprocess.check_call(cmd, shell = shellBool, stderr = sys.stdout)
         except subprocess.CalledProcessError as e:
             print(e.cmd)
@@ -279,6 +293,7 @@ def bowtie2(filteredSeqsFile, alignmentsFile, bowtieDatabase, similarity, thread
                 ' --np 0 --mp "1,1" --rdg "0,1" --rfg "0,1" --score-min "L,0,-' + str(similarity) + \
                 '" --norc -f ' + filteredSeqsFile + ' -p ' + str(threads) + \
                 ' --very-sensitive'
+            print cmd
             subprocess.check_call(cmd, shell = shellBool, stderr = sys.stdout)
         except subprocess.CalledProcessError as e:
             error(e, msg = "ERROR: Bowtie2 failed. Exiting.", exit = True)
@@ -297,7 +312,8 @@ def ninja_parse(seqsDBFile, alignmentsFile, masterDBFile, taxMapFile, otuTableFi
     global shellBool
     try:
         cmd = ninjaParseFile + ' ' + seqsDBFile + ' ' + alignmentsFile + ' ' + masterDBFile + ' ' + \
-              taxMapFile + ' ' + otuTableFile + ' --legacy' 
+              taxMapFile + ' ' + otuTableFile + ' --legacy'
+        print cmd
         subprocess.check_call(cmd, shell = shellBool, stdout = sys.stdout)
         #if verbose: print("NINJA complete. Begin post-processing.\n")
     except subprocess.CalledProcessError as e:
@@ -413,7 +429,7 @@ def clean(inputSeqsFile, filteredSeqsFile, seqsDBFile, alignmentsFile, parseLogF
 
 # Runs ninja, bowtie2 and then processes output. All files output in specified output folder. 
 # User must specify ninja's directory as an environment variable named 'NINJA_DIR'
-def main(inputSeqsFile, folder, trim, RC, similarity, threads, mode, denoising, verboseBool):
+def main(inputSeqsFile, folder, database, trim, RC, similarity, threads, mode, denoising, verboseBool, print_only, stdout):
 
     # Gets ninja's directory relative to current working directory
     ninjaDirectory = os.path.relpath(os.path.dirname(os.path.realpath(__file__)), os.getcwd()).replace("/", "\\") 
@@ -432,7 +448,8 @@ def main(inputSeqsFile, folder, trim, RC, similarity, threads, mode, denoising, 
     global ninjaLog
     console = sys.stdout
     ninjaLog = os.path.join(out, "ninja_log.txt").replace("\\", "/") 
-    sys.stdout = open(ninjaLog, 'w')
+    if not stdout:
+        sys.stdout = open(ninjaLog, 'w')
         
     global shellBool
     osName = sys.platform
@@ -471,11 +488,12 @@ def main(inputSeqsFile, folder, trim, RC, similarity, threads, mode, denoising, 
     filteredSeqsFile = os.path.join(out, "filtered_sequences.fa").replace("\\", "/") 
     seqsDBFile = os.path.join(out, "seqsDB.db").replace("\\", "/") 
         # Bowtie2 files
-    alignmentsFile = os.path.join(out, "alignments.txt").replace("\\", "/") 
-    masterDBFile = os.path.abspath(os.path.join(ninjaDirectory, os.path.join("bt2db", "masterDB97.map"))).replace("\\", "/") 
-    bowtieDatabase = os.path.abspath(os.path.join(ninjaDirectory, os.path.join("bt2db", "Ninja97"))).replace("\\", "/") 
+    alignmentsFile = os.path.join(out, "alignments.txt").replace("\\", "/")
+    databasedir = os.path.join(ninjaDirectory, 'databases', database)
+    masterDBFile = os.path.abspath(os.path.join(databasedir, database + ".db")).replace("\\", "/") 
+    bowtieDatabase = os.path.abspath(os.path.join(databasedir, database)).replace("\\", "/") 
         # Ninja_parse files
-    taxMapFile = os.path.abspath(os.path.join(ninjaDirectory, os.path.join("bt2db", "taxMap97.txt"))).replace("\\", "/") 
+    taxMapFile = os.path.abspath(os.path.join(databasedir, database + ".taxonomy")).replace("\\", "/") 
     parseLogFile = os.path.join(os.getcwd(), "parseLog.txt").replace("\\", "/") 
     otuTableFile = os.path.join(out, "otutable.biom").replace("\\", "/") 
         # Post-processing files
@@ -483,22 +501,25 @@ def main(inputSeqsFile, folder, trim, RC, similarity, threads, mode, denoising, 
     mapOutFile = os.path.join(out, "otu_map.txt").replace("\\", "/") 
 
     # Runs ninja_filter, bowtie2 and ninja_parse. Processes ninja results, generating OTU map and a list of failed seqs
-    print
+    print "Running Ninja filter..."
     t1 = timeit.Timer(lambda: ninja_filter(inputSeqsFile, filteredSeqsFile, seqsDBFile, trim, RC, denoising))
     if verbose: 
         print("Ninja filter time: " + str(t1.timeit(1)))
     else:
         t1.timeit(1)
+    print "Running Bowtie..."
     t2 = timeit.Timer(lambda: bowtie2(filteredSeqsFile, alignmentsFile, bowtieDatabase, similarity, threads, mode))
     if verbose: 
         print("Bowtie time: " + str(t2.timeit(1)))
     else:
         t2.timeit(1)
+    print "Running Ninja parse..."
     t3 = timeit.Timer(lambda: ninja_parse(seqsDBFile, alignmentsFile, masterDBFile, taxMapFile, otuTableFile))
     if verbose: 
         print("Ninja parse time: " + str(t3.timeit(1)) + "\n")
     else:
         t3.timeit(1)
+    print "Running post-processing..."
     t4 = timeit.Timer(lambda: process(inputSeqsFile, filteredSeqsFile, parseLogFile, seqOutFile, mapOutFile, trim, RC))
     if verbose: 
         print("Post-processing time: " + str(t4.timeit(1)))
@@ -528,8 +549,8 @@ if __name__=='__main__':
     check_args(args, p)
 
     # Runs ninja pipeline
-    t = timeit.Timer(lambda: main(args['input'], args['output'], args['trim'], args['reverse_complement'], args['similarity'], 
-                                  args['threads'], args['mode'], args['denoising'], args['quiet']))
+    t = timeit.Timer(lambda: main(args['input'], args['output'], args['database'], args['trim'], args['reverse_complement'], args['similarity'], 
+                                  args['threads'], args['mode'], args['denoising'], args['quiet'], args['print_only'], args['stdout']))
     if args['quiet']: 
         print("Total time: " + str(t.timeit(1)))
     else: 
