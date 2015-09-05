@@ -417,8 +417,9 @@ def clean(inputSeqsFile, filteredSeqsFile, seqsDBFile, alignmentsFile, parseLogF
         os.remove(filteredSeqsFile)
         os.remove(seqsDBFile)
         os.remove(alignmentsFile)
-        os.remove(parseLogFile)
-        os.remove("map_seqid_reps.txt")
+        if parseLogFile is not None:
+            os.remove(parseLogFile)
+            os.remove("map_seqid_reps.txt")
 
         # Moves corrected input sequences file to output if it was written
         global inputFastaCorrected
@@ -481,7 +482,9 @@ def main(inputSeqsFile, folder, database, trim, RC, similarity, threads, mode, d
     verbose = verboseBool
     if osName.startswith("darwin") or osName.startswith("os"):			# Mac
     	ninjaFilterFile = os.path.join(ninjaDirectory, os.path.join("bin", "./ninja_filter_mac")).replace("\\", "/") 
-    	ninjaParseFile = os.path.join(ninjaDirectory, os.path.join("bin", "./ninja_parse_filtered_mac")).replace("\\", "/") 
+    	ninjaParseFile = os.path.join(ninjaDirectory, os.path.join("bin", "./ninja_parse_filtered_mac")).replace("\\", "/")
+        if full_output:
+            ninjaParseFile = os.path.join(ninjaDirectory, os.path.join("bin", "./ninja_parse_filtered_with_log_mac")).replace("\\", "/")
     elif osName.startswith("win32") or osName.startswith("cygwin"):		# Windows and cygwin
     	ninjaFilterFile = os.path.join(ninjaDirectory, os.path.join("bin", "ninja_filter.exe")).replace("\\", "/") 
     	ninjaParseFile = os.path.join(ninjaDirectory, os.path.join("bin", "ninja_parse_filtered.exe")).replace("\\", "/")
@@ -489,6 +492,8 @@ def main(inputSeqsFile, folder, database, trim, RC, similarity, threads, mode, d
     else:   # Linux
         ninjaFilterFile = os.path.join(ninjaDirectory, os.path.join("bin", "./ninja_filter_linux")).replace("\\", "/") 
         ninjaParseFile = os.path.join(ninjaDirectory, os.path.join("bin", "./ninja_parse_filtered_linux")).replace("\\", "/")
+#        if full_output:
+#            ninjaParseFile = os.path.join(ninjaDirectory, os.path.join("bin", "./ninja_parse_filtered_with_log_linux")).replace("\\", "/")
 
 
         # Sets variables used in ninja calls. First, ninja_filter files
@@ -500,8 +505,11 @@ def main(inputSeqsFile, folder, database, trim, RC, similarity, threads, mode, d
     masterDBFile = os.path.abspath(os.path.join(databasedir, database + ".db")).replace("\\", "/") 
     bowtieDatabase = os.path.abspath(os.path.join(databasedir, database)).replace("\\", "/") 
         # Ninja_parse files
-    taxMapFile = os.path.abspath(os.path.join(databasedir, database + ".taxonomy")).replace("\\", "/") 
-    parseLogFile = os.path.join(os.getcwd(), "parseLog.txt").replace("\\", "/") 
+    taxMapFile = os.path.abspath(os.path.join(databasedir, database + ".taxonomy")).replace("\\", "/")
+    if full_output:
+        parseLogFile = os.path.join(os.getcwd(), "parseLog.txt").replace("\\", "/") 
+    else:
+        parseLogFile = None
     otuTableFile = os.path.join(out, "otutable.biom").replace("\\", "/") 
         # Post-processing files
     seqOutFile = os.path.join(out, "failed_sequences.fna").replace("\\", "/") 
