@@ -73,12 +73,18 @@ def get_args(p):
                    metavar = '',
                    help = "For argument X.Y, discards all reads that appear less than X times and all kmers that appear" + \
                           " less than Y times unless kmers in reads that appear more than X times (default 0.0001)")
+    p.add_argument("-F", "--full_output",
+                   action = 'store_true',
+                   help = "Output QIIME-style OTU map and fasta file containing failed sequences [default False]")
     p.add_argument("-P", "--print_only",
                    action = 'store_true',
                    help = "Print commands only - do not run [default False]")
     p.add_argument("-S", "--stdout",
                    action = 'store_true',
                    help = "Print output to stdout instead of log file [default False]")
+    p.add_argument("-C", "--check_fasta",
+                   action = 'store_true',
+                   help = "Check fasta for correct formatting; otherwise assumes fasta is in QIIME-ready format [default False]")
     p.add_argument("-r", "--reverse_complement",
                    action = 'store_true',
                    help = "Flags sequences for reverse complementing (default no reverse complement)")
@@ -90,14 +96,14 @@ def get_args(p):
     return args
 
 # Checks if args work. Takes args and parser as input
-def check_args(args, p):
-    # Yells at user if they don't specify an input file
+def check_args(args, p, check_fasta):
+
     if args['input'] is None:
         p.print_help()
         sys.exit('\nPlease include an input sequences file in fasta format.')
     
     # Checks if input sequences fasta is correctly formatted. Writes correct one if not
-    else:
+    elif check_fasta:
         fileName = args['input']
         if not check_fasta(open(fileName)):
             print("ERROR: Input fasta formatted incorrectly for QIIME, e.g. sequences or title on multiple lines. Writing " + \
@@ -240,7 +246,7 @@ def ninja_filter(inputSeqsFile, filteredSeqsFile, seqsDBFile, trim, RC, denoisin
         print cmd
         subprocess.check_call(cmd, shell = shellBool, stdout = sys.stdout)
     except subprocess.CalledProcessError as e:
-        error(e, msg = "ERROR: Filtering failed. Check input FASTA formatting and input file locations. Exiting.", exit = True)
+        error(e, msg = "ERROR: Filtering failed. One possible explanation is a problem with input FASTA formatting. Please rerun with '--check_fasta'. Exiting.", exit = True)
     return cmd
     
 
@@ -429,7 +435,7 @@ def clean(inputSeqsFile, filteredSeqsFile, seqsDBFile, alignmentsFile, parseLogF
 
 # Runs ninja, bowtie2 and then processes output. All files output in specified output folder. 
 # User must specify ninja's directory as an environment variable named 'NINJA_DIR'
-def main(inputSeqsFile, folder, database, trim, RC, similarity, threads, mode, denoising, verboseBool, print_only, stdout):
+def main(inputSeqsFile, folder, database, trim, RC, similarity, threads, mode, denoising, verboseBool, print_only, stdout, full_output):
 
     # Gets ninja's directory relative to current working directory
     ninjaDirectory = os.path.relpath(os.path.dirname(os.path.realpath(__file__)), os.getcwd()).replace("/", "\\") 
@@ -449,6 +455,7 @@ def main(inputSeqsFile, folder, database, trim, RC, similarity, threads, mode, d
     console = sys.stdout
     ninjaLog = os.path.join(out, "ninja_log.txt").replace("\\", "/") 
     if not stdout:
+        print "printing to file"
         sys.stdout = open(ninjaLog, 'w')
         
     global shellBool
@@ -519,17 +526,14 @@ def main(inputSeqsFile, folder, database, trim, RC, similarity, threads, mode, d
         print("Ninja parse time: " + str(t3.timeit(1)) + "\n")
     else:
         t3.timeit(1)
-    print "Running post-processing..."
-    t4 = timeit.Timer(lambda: process(inputSeqsFile, filteredSeqsFile, parseLogFile, seqOutFile, mapOutFile, trim, RC))
-    if verbose: 
-        print("Post-processing time: " + str(t4.timeit(1)))
-    else:
-        t4.timeit(1)
-    t5 = timeit.Timer(lambda: clean(inputSeqsFile, filteredSeqsFile, seqsDBFile, alignmentsFile, parseLogFile))
-    if verbose: 
-        print("Clean-up time: " + str(t5.timeit(1)))
-    else:
-        t5.timeit(1)
+    if full_output:
+        print "Running post-processing..."
+        t4 = timeit.Timer(lambda: process(inputSeqsFile, filteredSeqsFile, parseLogFile, seqOutFile, mapOutFile, trim, RC))
+        if verbose: 
+            print("Post-processing time: " + str(t4.timeit(1)))
+        else:
+            t4.timeit(1)
+    clean(inputSeqsFile, filteredSeqsFile, seqsDBFile, alignmentsFile, parseLogFile)
 
 # Wrapper for main function, called from command line
 # Bare minimum args:
@@ -537,6 +541,7 @@ def main(inputSeqsFile, folder, database, trim, RC, similarity, threads, mode, d
 # Sample maximum args:
 #   -i "seqs.fna" -o "output" -r -t 200 -mo 'max' -s 98 -d 1.005 -q
 if __name__=='__main__':
+
     # Parses command line arguments
     p = argparse.ArgumentParser(description = "NINJA OTU Picker: NINJA Is Not Just Another OTU Picker -- filter program\n" + \
                                               "Knights Lab (www.knightslab.org/ninja)\n" + \
@@ -546,13 +551,9 @@ if __name__=='__main__':
                                         'sequences with -r')
     args = get_args(p)
     args = vars(args)
-    check_args(args, p)
+    check_args(args, p, args['check_fasta'])
 
     # Runs ninja pipeline
-    t = timeit.Timer(lambda: main(args['input'], args['output'], args['database'], args['trim'], args['reverse_complement'], args['similarity'], 
-                                  args['threads'], args['mode'], args['denoising'], args['quiet'], args['print_only'], args['stdout']))
-    if args['quiet']: 
-        print("Total time: " + str(t.timeit(1)))
-    else: 
-        t.timeit(1)
+    main(args['input'], args['output'], args['database'], args['trim'], args['reverse_complement'], args['similarity'], 
+                                  args['threads'], args['mode'], args['denoising'], args['quiet'], args['print_only'], args['stdout'], args['full_output'])
 
