@@ -492,8 +492,8 @@ def main(inputSeqsFile, folder, database, trim, RC, similarity, threads, mode, d
     else:   # Linux
         ninjaFilterFile = os.path.join(ninjaDirectory, os.path.join("bin", "./ninja_filter_linux")).replace("\\", "/") 
         ninjaParseFile = os.path.join(ninjaDirectory, os.path.join("bin", "./ninja_parse_filtered_linux")).replace("\\", "/")
-#        if full_output:
-#            ninjaParseFile = os.path.join(ninjaDirectory, os.path.join("bin", "./ninja_parse_filtered_with_log_linux")).replace("\\", "/")
+        if full_output:
+            ninjaParseFile = os.path.join(ninjaDirectory, os.path.join("bin", "./ninja_parse_filtered_with_log_linux")).replace("\\", "/")
 
 
         # Sets variables used in ninja calls. First, ninja_filter files
