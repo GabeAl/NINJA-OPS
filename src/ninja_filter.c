@@ -65,7 +65,8 @@
 #define KMER 8
 #endif
 unsigned WORDSIZE=KMER;
-unsigned WSHFT, RSHFT; // Later auto-set as well to ((WORDSIZE << 1) - 2)
+unsigned WSHFT = (((sizeof(WORDTYPE)*4) << 1) - 2), 
+	RSHFT = sizeof(WORDTYPE) * 8 - KMER*2; // Later auto-set as well to ((WORDSIZE << 1) - 2)
 size_t MAXLEN; 
 WORDTYPE A_ID, C_ID, G_ID, T_ID; // Will be defined later in PREP_WORDS
 WORDTYPE *C2XbL;
@@ -110,7 +111,9 @@ inline int ucmp(int1, int2) register const unsigned int *int1, *int2; {
 inline int comp(int1, int2) register const void *int1, *int2; {
 	return *(unsigned *)int1 - *(unsigned *)int2; 
 }
-
+inline int cmp64u(int1, int2) register const void *int1, *int2; {
+	return (long long)*(uint64_t *)int1 - (long long)*(uint64_t *)int2; 
+}
 // Specialized inline character-based binary string search
 inline size_t crBST(char *key, size_t sz, char **String) {
 	char **p = String; //, *ref_s, *key_s; 
@@ -156,6 +159,7 @@ type * countSrt(type *array, size_t length) {
 	do ++Countarr[*++ptr]; while (--ctr);
 	type *new = malloc(length * sizeof(type));
 	ptr = new - 1; ctr = max + 1;
+	//if (!ctr) return 0;
 	do {
 		type reps = *++caP;
 		while (reps--) *++ptr = caP - Countarr;
@@ -310,7 +314,7 @@ int main( int argc, char *argv[] )
 	
 #ifdef DEBUG
 	if (filt_i) 
-		printf("WORDSIZE: %I64u, KMER: %u, MAXLEN: %I64u, WSHFT: %I64u, RSHFT: %I64u\n",WORDSIZE,KMER,MAXLEN,WSHFT,RSHFT); 
+		printf("WORDSIZE: %I64u, KMER: %u, MAXLEN: %I64u, WSHFT: %u, RSHFT: %u\n",WORDSIZE,KMER,MAXLEN,WSHFT,RSHFT); 
 #endif
 	
 	// Finds length of input sequence FASTA file, in bytes
@@ -435,7 +439,14 @@ int main( int argc, char *argv[] )
 	
 	// Considers kmer component of denoising
 	if (filt_i) {
-		sortWrd = countSrt(words,MAXLEN);
+		wordPtr = words;
+		sortWrd = malloc(MAXLEN *sizeof(uint64_t));
+		uint64_t *sortWrdPtr = sortWrd;
+		size_t lenC = MAXLEN; 
+		do *sortWrdPtr++ = *wordPtr++; while (--lenC);
+		qsort(sortWrd, MAXLEN, sizeof(uint64_t), cmp64u);
+		//sortWrd = countSrt(words,MAXLEN);
+		
 #ifdef PROFILE
 		printf("->SortIX: %f\n", ((double) (clock() - start)) / CLOCKS_PER_SEC); start = clock();
 #endif
@@ -449,6 +460,12 @@ int main( int argc, char *argv[] )
 #ifdef DEBUG
 		printf("rareCutoff=%u, rareThres=%f, rareDupes=%u, %%Coverage=%f\n",rareCutoff, rareThres, nThres,(double)(rareIX+1)/MAXLEN);
 #endif
+		if (nThres == 1) {
+			printf("Chosen K-mer denoising level produces no duplications.\n");
+			filt_i = 0;
+			--copyNumThres;
+		}
+		
 	}
 	// Sorts the sequences and runs deduplification
 	// 1) Allocates memory and checks if memory available
@@ -513,6 +530,7 @@ int main( int argc, char *argv[] )
 	size_t numUniq_mx = numUniq - 1;
 	
 	// Performs deduplication and denoising using sorted data
+	//double propBad = 0;
 	nE = numEntries; while (nE--) {
 		++*(Counts + (six=crBST(*(smpArr + (*pp - seqArr)), numUniq_mx, SmpDD))); // specific count
 		if (nE && !cmpF(**pp, **(pp + 1))) { // Dupe! 
@@ -525,6 +543,7 @@ int main( int argc, char *argv[] )
 			unsigned rLen = 0;
 			double propBad = 1.f;
 			if (filt_i) { // && copies <= copyNumThres) {
+				
 				k = 0; word = 0; wBad = 0;
 #ifdef LOGK
 				fprintf(log,"\n");
@@ -554,7 +573,7 @@ int main( int argc, char *argv[] )
 				fprintf(log,"\nCopies: %u, Bad=%u, prop=%f", copies,wBad,propBad);
 #endif
 			} 
-			if (!propBad || copies >= copyNumThres) { //propBad < rareThres // must uncomment propBad = (double)wBad/rLen
+			if (copies >= copyNumThres || (!propBad && copies > (int)copyNumThres - 2)) { //propBad < rareThres // must uncomment propBad = (double)wBad/rLen
 #ifdef LOGK
 				fprintf(log_dn,"%u: %u\n", rix, copies);
 #endif
