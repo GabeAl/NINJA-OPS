@@ -68,11 +68,13 @@ def get_args(p):
                    metavar = '',
                    help = "NINJA sensitivity mode: 'normal' (default), 'fast' (less sensitive), or 'max' (more sensitive, slower)")
     p.add_argument("-d", "--denoising",
-                   type = float,
-                   default = 0.0001,
+                   type = str,
+                   default = "1.0001",
                    metavar = '',
-                   help = "For argument X.Y, discards all reads that appear less than X times and all kmers that appear" + \
-                          " less than Y times unless kmers in reads that appear more than X times (default 0.0001)")
+                   help = "For argument X.Y, discards all reads that appear fewer than X times and all kmers that appear" + \
+                          " less than Y fraction of kmers, except if the kmer appears in reads that appear more than X times." + \
+                          " Suggested values: No denoising = 0.0; Light denoising = 1.0001 (throws out reads seen only once" + \
+                          " that have rare kmers; Recommended denoising = 2.0001 (throws out all singletons and all doubletons with rare kmers) (default 1.0001)")
     p.add_argument("-F", "--full_output",
                    action = 'store_true',
                    help = "Output QIIME-style OTU map and fasta file containing failed sequences [default False]")
@@ -82,6 +84,9 @@ def get_args(p):
     p.add_argument("-S", "--stdout",
                    action = 'store_true',
                    help = "Print output to stdout instead of log file [default False]")
+    p.add_argument("-R", "--retain_intermediates",
+                   action = 'store_true',
+                   help = "Retain intermediate files [default False]")
     p.add_argument("-C", "--check_fasta",
                    action = 'store_true',
                    help = "Check fasta for correct formatting; otherwise assumes fasta is in QIIME-ready format [default False]")
@@ -237,6 +242,7 @@ def ninja_filter(inputSeqsFile, filteredSeqsFile, seqsDBFile, trim, RC, denoisin
     if RC:
         argRC = "RC"
 
+    argDenoising = 'D ' + denoising
     # Runs ninja_filter. Run in shell only on Mac
     cmd = ""
     try:
@@ -436,7 +442,8 @@ def clean(inputSeqsFile, filteredSeqsFile, seqsDBFile, alignmentsFile, parseLogF
 
 # Runs ninja, bowtie2 and then processes output. All files output in specified output folder. 
 # User must specify ninja's directory as an environment variable named 'NINJA_DIR'
-def main(inputSeqsFile, folder, database, trim, RC, similarity, threads, mode, denoising, verboseBool, print_only, stdout, full_output):
+def main(inputSeqsFile, folder, database, trim, RC, similarity, threads,
+        mode, denoising, verboseBool, print_only, stdout, full_output, retain_intermediates):
 
     # Gets ninja's directory relative to current working directory
     ninjaDirectory = os.path.relpath(os.path.dirname(os.path.realpath(__file__)), os.getcwd()).replace("/", "\\") 
@@ -456,7 +463,6 @@ def main(inputSeqsFile, folder, database, trim, RC, similarity, threads, mode, d
     console = sys.stdout
     ninjaLog = os.path.join(out, "ninja_log.txt").replace("\\", "/") 
     if not stdout:
-        print "printing to file"
         sys.stdout = open(ninjaLog, 'w')
         
     global shellBool
@@ -541,7 +547,8 @@ def main(inputSeqsFile, folder, database, trim, RC, similarity, threads, mode, d
             print("Post-processing time: " + str(t4.timeit(1)))
         else:
             t4.timeit(1)
-    clean(inputSeqsFile, filteredSeqsFile, seqsDBFile, alignmentsFile, parseLogFile)
+    if not retain_intermediates:
+        clean(inputSeqsFile, filteredSeqsFile, seqsDBFile, alignmentsFile, parseLogFile)
 
 # Wrapper for main function, called from command line
 # Bare minimum args:
@@ -563,5 +570,6 @@ if __name__=='__main__':
 
     # Runs ninja pipeline
     main(args['input'], args['output'], args['database'], args['trim'], args['reverse_complement'], args['similarity'], 
-                                  args['threads'], args['mode'], args['denoising'], args['quiet'], args['print_only'], args['stdout'], args['full_output'])
+                                  args['threads'], args['mode'], args['denoising'], args['quiet'], args['print_only'],
+                                  args['stdout'], args['full_output'], args['retain_intermediates'])
 
