@@ -74,7 +74,8 @@ def get_args(p):
                    help = "For argument X.Y, discards all reads that appear fewer than X times and all kmers that appear" + \
                           " less than Y fraction of kmers, except if the kmer appears in reads that appear more than X times." + \
                           " Suggested values: No denoising = 0.0; Light denoising = 1.0001 (throws out reads seen only once" + \
-                          " that have rare kmers; Recommended denoising = 2.0001 (throws out all singletons and all doubletons with rare kmers) (default 1.0001)")
+                          " that have rare kmers; Moderate denoising = 2.0001 (throws out all singletons and all doubletons with rare kmers);" + \
+                          " Aggressive denoising = 6.0 (nearly guaranteed to eliminate all sequencing error - although not PCR error - in most data sets) (default 1.0001)")
     p.add_argument("-F", "--full_output",
                    action = 'store_true',
                    help = "Output QIIME-style OTU map and fasta file containing failed sequences [default False]")
