@@ -461,7 +461,7 @@ int main( int argc, char *argv[] )
 		printf("rareCutoff=%u, rareThres=%f, rareDupes=%u, %%Coverage=%f\n",rareCutoff, rareThres, nThres,(double)(rareIX+1)/MAXLEN);
 #endif
 		if (nThres == 1) {
-			printf("Chosen K-mer denoising level produces no duplications.\n");
+			printf("Chosen K-mer denoising level has no effect.\n");
 			filt_i = 0;
 			--copyNumThres;
 		}
