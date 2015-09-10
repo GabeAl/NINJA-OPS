@@ -526,7 +526,7 @@ int main( int argc, char *argv[] )
 	unsigned wBad = 0; 
 	int (*cmpF)(register const char *, register const char *) = copyNumThres ? &ycmp : &xcmp;
 	//int *cmpF = copyNumThres ? ycmp(const char *, const char *) : xcmp(const char *, const char *);
-	if (!copyNumThres) copyNumThres = filt_i ? -1u : 1;
+	if (!copyNumThres) copyNumThres = filt_i ? -1 : 1;
 	size_t numUniq_mx = numUniq - 1;
 	
 	// Performs deduplication and denoising using sorted data
@@ -573,7 +573,8 @@ int main( int argc, char *argv[] )
 				fprintf(log,"\nCopies: %u, Bad=%u, prop=%f", copies,wBad,propBad);
 #endif
 			} 
-			if (copies >= copyNumThres || (!propBad && copies > (int)copyNumThres - 2)) { //propBad < rareThres // must uncomment propBad = (double)wBad/rLen
+			if (copies >= copyNumThres || (!propBad && 
+				(copyNumThres==-1 || (copies > (int)copyNumThres - 2)))) { 
 #ifdef LOGK
 				fprintf(log_dn,"%u: %u\n", rix, copies);
 #endif
