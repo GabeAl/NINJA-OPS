@@ -111,8 +111,9 @@ inline int ucmp(int1, int2) register const unsigned int *int1, *int2; {
 inline int comp(int1, int2) register const void *int1, *int2; {
 	return *(unsigned *)int1 - *(unsigned *)int2; 
 }
-inline int cmp64u(int1, int2) register const void *int1, *int2; {
-	return (long long)*(uint64_t *)int1 - (long long)*(uint64_t *)int2; 
+int cmp64u(int1, int2) register const void *int1, *int2; {
+	return *(uint64_t *)int1 < *(uint64_t *)int2 ? -1 : 
+		*(uint64_t *)int1 > *(uint64_t *)int2; 
 }
 // Specialized inline character-based binary string search
 inline size_t crBST(char *key, size_t sz, char **String) {
@@ -227,7 +228,7 @@ void testWord() {
 	char *testSeq = "ACGTTGACAACCCT\0", *testSeqP = testSeq;
  	WORDTYPE hoho= 0; 
 	do {
-		printf("Loop (%d): %u. ", testSeqP - testSeq, hoho);
+		printf("Loop (%d): %u. ", (unsigned)(testSeqP - testSeq), hoho);
 		hoho += C2Xb(*testSeqP);
 		printf("After '%c' (%u): %u.\n", *testSeqP, C2X(*testSeqP), hoho);
 		// Replay what's inside hoho, letter by letter.
@@ -430,7 +431,7 @@ int main( int argc, char *argv[] )
 #ifdef PROFILE
 	printf("->Short read parse: %f\n", ((double) (clock() - start)) / CLOCKS_PER_SEC); start = clock();
 #endif
-	printf("Total short reads: %d\n", numEntries);
+	printf("Total short reads: %lu\n", numEntries);
 	// Prepares for denoising
 	uint64_t *sortWrd;
 	size_t len = MAXLEN, rareCutoff, rareIX;

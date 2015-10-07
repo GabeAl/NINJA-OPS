@@ -32,8 +32,8 @@
 	printf( "in_NINJA.map: the (included) sequence index -> OTU database\n");\
 	printf( "in_taxa.txt (optional): the (included) sorted OTU -> taxonomy table\n");\
 	printf( "\n" "OUTPUT PARAMETERS:\n");\
-	printf( "out_otutable: name of the otu table to create (BIOM format\n");\
-	printf( "--legacy: optional, create legacy tab-delimited OTU table.\n");\
+	printf( "out_otutable: name of the otu table to create (BIOM format)\n");\
+	printf( "--legacy: optional, create legacy tab-delimited OTU table (txt).\n");\
 	return 1; \
 }
 
@@ -90,7 +90,7 @@ int cmp(const void *v1, const void *v2) {
 }
 
 // Wide binary search: uncovers range of result rather than single result
-inline unsigned int uWBS(unsigned *ixList, unsigned key, unsigned range) {
+unsigned int uWBS(unsigned *ixList, unsigned key, unsigned range) {
 	// wide binary search index list for correct OTU 
 	unsigned middle, low = 0, high = range;
 	while (low <= high) {
@@ -282,13 +282,18 @@ int main ( int argc, char *argv[] )
 #endif
 	unsigned lcounter = 0;
 	while (*++cix) { // != '\t' && *cix != '\n') { // work through the sample string
+		//printf("cix (starting)=%u (%c) ",cix,*cix);
 		++lcounter;
 		startS = cix;
 		// lookahead to the read map region
-		tabs = 0; do if (*++cix == '\t') ++tabs; while (tabs < 3);
+		tabs = 0; do {
+			if (!*cix) goto endGame; // workaround for mac assembler's race condition
+			if (*++cix == '\t') ++tabs; 
+		} while (tabs < 3);
 		alignPos = atoi(cix);
 		rix = atoi(startS);
 		curSamp = *(Seq2samp + rix); // look up rix
+		
 		//fprintf(ofp,"Read %u, Align Pos: %u, Sample String: %s\n", rix, alignPos, curSamp);
 		otuIX = uWBS(ixList, alignPos, ilines); //*(OtuList + otuIX) is actual otu
 #ifdef LOGMATCHES
@@ -296,6 +301,7 @@ int main ( int argc, char *argv[] )
 #endif
 		unsigned amt = 0;
 		//fprintf(ofp,"-- This read maps to otu %u, (%s)\n", OtuList[otuIX], OtuMap_taxa[uWBS(OtuMap_otus,OtuList[otuIX],blines)]); //*(OtuList + otu));
+		//printf("rix=%u, curSamp=%u, alignPos=%u,cix=%u\n",rix,curSamp,alignPos,cix);
 		do { //startS new scope
 			//++amt;
 			startS = curSamp;
@@ -314,6 +320,7 @@ int main ( int argc, char *argv[] )
 #endif
 		while (*++cix != '\n');
 	}
+endGame:
 #ifdef PROFILE
 	printf("->Time for matrix generation: %f\n", ((double) (clock() - start)) / CLOCKS_PER_SEC); start = clock();
 #endif
