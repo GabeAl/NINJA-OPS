@@ -1,25 +1,11 @@
-/* NINJA OTU Picker: NINJA Is Not Just Another OTU Picker -- filter program
-   Knights Lab (www.knightslab.org/ninja)
-   This program generates the databases necessary for OTU mapping with bowtie2.
-   Commented and revised by Henry Ward (henry.n.ward@lawrence.edu)
-   
-   Compilation information (GCC):
-   Ascribes to std=gnu and doesn't require C99 support or UNIX intrinsics.
-   Flags: -m64 -O3 -flto ninja_filter.c -o ninja_filter
-   Optional Definitions (use -D DEF[=SETTING] in gcc at compile time to use): 
-    WORDTYPE=(C intrinsic type), KMER=(length of kmer), DEBUG (print debug info), 
-    PROFILE (print speed info), LOGK (logs kmers)
-*/
 #include <stdio.h>
-#include <inttypes.h>
-#include <math.h>
-#include <stdbool.h>
-#include <string.h>
+#include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 #define PRINT_USAGE() \
 {\
-	printf( "\nNINJA Is Not Just Another OTU Picker: filter program. Usage:\n");\
+	printf( "\nNINJA Reparse: ninja_minifilter. Usage:\n");\
 	printf( "ninja_filter in_reads.fa out_filtered.fa out_sampDB.db [<trim>] [RC] [D [x]]\n" );\
 	printf("\nINPUT PARAMETERS:\n");\
 	printf( "in_reads.fa: the reads you wish to process\n");\
@@ -29,106 +15,143 @@
 	printf( "<trim> (optional, numeric): specify the number of bases to keep\n");\
 	printf( "[RC] (optional): if \"RC\" is specified, reverse-complement seqs\n");\
 	printf( "[D] <x.y> (optional): Denoise [duplicates x, kmer rarity y]\n");\
-	return 1;\
+	printf( "(Note: .y k-mer filtering is NOT YET IMPLEMENTED in minifilter.\n");\
+	return 2;\
 }
 
-/**
- *  Utility macros
- */
+//#include "fgets2.c"
+#define LINELEN UINT16_MAX
+#ifndef PACKSIZE
+	#define PACKSIZE 32
+#endif
+#if PACKSIZE==64
+	#define WTYPE __uint128_t
+	#define SEQPACKS 1024
+	#define RSHFT 126
+#elif PACKSIZE==32
+	#define WTYPE uint64_t
+	#define SEQPACKS 2048
+	#define RSHFT 62
+#elif PACKSIZE==16
+	#define WTYPE uint32_t
+	#define SEQPACKS 4096
+	#define RSHFT 30
+#elif PACKSIZE==8
+	#define WTYPE uint16_t
+	#define SEQPACKS 8192
+	#define RSHFT 14
+#elif PACKSIZE==4
+	#define WTYPE uint8_t
+	#define SEQPACKS 16384
+	#define RSHFT 6
+#endif
+//#define SEQPACKS LINELEN/PACKSIZE
+//#define RSHFT (PACKSIZE*2)-2
+
+typedef struct __attribute__ ((__packed__)) {
+	WTYPE word;
+	uint32_t ix;
+	uint16_t length;
+} SortBlock2;
+
+#ifdef USE_QSORT
+#include "qsort.h"
+void SB2_qsort(SortBlock2 *arr, unsigned n) {
+	#define SB2_LT(a,b) ((a->word < b->word) || \
+		(a->word == b->word && a->length < b->length))
+	QSORT(SortBlock2, arr, n, SB2_LT);
+}
+#endif
+
+WTYPE *C2Xb;
+char *X2C = "ACGTNNNNNNNNNNNNNNNN";
+char *X2C_RC = "TGCANNNNNNNNNNNNNNNN";
+
+inline void num2word(WTYPE num, char * word) {
+	int go = 0; for (; go < PACKSIZE; go++) {
+		WTYPE temp = (WTYPE)num >> RSHFT;
+		word[go] = X2C[temp];
+		num <<= 2;
+	}
+}
+
+inline void num2wordRC(WTYPE num, char * word) {
+	int go = PACKSIZE-1; for (; go > -1; go--) {
+		WTYPE temp = (WTYPE)num >> RSHFT;
+		word[go] = X2C_RC[temp];
+		num <<= 2;
+	}
+}
+
+inline char * decodeStringX(WTYPE * Seq, uint16_t length, char *word, char *newString) {
+	unsigned clumps = length/PACKSIZE;
+	if (PACKSIZE*clumps < length) ++clumps;
+	int z = 0; for (; z < clumps-1; z++) 
+		num2word(Seq[z],newString + z*PACKSIZE);
+	num2word(Seq[clumps-1],newString+z*PACKSIZE);
+	newString[length] = 0;
+	return newString;
+}
+
+inline char * decodeStringXRC(WTYPE * Seq, uint16_t length, char *word, char *newString) {
+	newString[length] = 0;
+	unsigned clumps = length/PACKSIZE;
+	if (PACKSIZE*clumps < length) ++clumps;
+	int z = clumps-2; for (; z > -1; z--) 
+		num2wordRC(Seq[z],newString + length - (z+1) *PACKSIZE);
+	num2wordRC(Seq[clumps-1],word);
+	register int fold = length % PACKSIZE; if (!fold) fold = PACKSIZE;
+	memcpy(newString,word+PACKSIZE-fold, fold); 
+	return newString;
+}
+
+// strict comparator
+int xcmp(WTYPE *Seq1, WTYPE *Seq2, uint16_t len1, uint16_t len2) {
+	unsigned length = len1 < len2 ? len1 : len2; //len1 is min
+	register unsigned clumps = (unsigned)length/PACKSIZE;
+	if (PACKSIZE*clumps < length) ++clumps;
+	int z = 0; for (; z < clumps; ++z) if (Seq1[z]!=Seq2[z])
+		return Seq1[z] < Seq2[z] ? -1 : 1;
+	return len1 < len2 ? -1 : len1 > len2;
+}
+
+// pre-sorted compactor
+int ycmp(WTYPE *Seq1, WTYPE *Seq2, uint16_t len1, uint16_t len2) {
+	if (len1 > len2) return 1; // lexicographic guarantee
+	int clumps = (unsigned)len1/PACKSIZE;
+	if (PACKSIZE*clumps < len1) ++clumps;
+	int z = 0; for (; z < clumps-1; ++z) if (Seq1[z]!=Seq2[z])
+		return 1; 
+	// Can differ by length in last clump
+	if (Seq1[z] == Seq2[z]) return 0;
+	if (Seq1[z] > Seq2[z]) return 1; // seq2 must be superset
+	unsigned shift = len1 % PACKSIZE;
+	if (shift) shift = (PACKSIZE - shift) * 2;
+	return (Seq1[z] >> shift) != (Seq2[z] >> shift);
+}
+
+// pre-sorted filter
+int zcmp(WTYPE *Seq1, WTYPE *Seq2, uint16_t len1, uint16_t len2) {
+	if (len1 != len2) return 1;
+	register unsigned clumps = (unsigned)len1/PACKSIZE;
+	if (PACKSIZE*clumps < len1) ++clumps;
+	int z = 0; for (; z < clumps; ++z) if (Seq1[z]!=Seq2[z])
+		return 1;
+	return 0;
+}
+
 #ifndef min 
-#define min(a, b) ((a)<=(b) ? (a) : (b)) 
+	#define min(a, b) ((a)<=(b) ? (a) : (b)) 
 #endif
 #define ch(i) *(**(a+i) + depth) 
 #define med3(ia, ib, ic) med3func(a, ia, ib, ic, depth)
 #define CUTOFF 10
 #define MEDCUT 50
-// Denoising complement utility macros
-#define C2Xb(x) x=='A' ? A_ID : x=='C' ? C_ID : x=='G' ? G_ID : x=='T' ? T_ID : 0
-#define X2Cb(x)  x==A_ID ? 'A' : x==C_ID ? 'C' : x==G_ID ? 'G' : x==T_ID ? 'T' : 'N'
-#define C2X(x) x=='A' ? 0 : x=='C' ? 1 : x=='G' ? 2 : x=='T' ? 3 : 0
-#define X2C(x) x==0 ? 'A' : x==1 ? 'C' : x==2 ? 'G' : x==3 ? 'T' : 'N' 
-
-// Returns complement of a base pair
-#define CMPT(x) \
-	x=='A' ? 'T' : x=='C' ? 'G' : x=='G' ? 'C' : x=='T' ? 'A' :  \
-	x=='a' ? 'T' : x=='c' ? 'G' : x=='g' ? 'C' : x=='t' ? 'A' : x 
-// Returns transcribed complement of a base pair
-#define CMPTR(x) \
-	x=='A' ? 'U' : x=='C' ? 'G' : x=='G' ? 'C' : x=='U' ? 'A' :  \
-	x=='a' ? 'U' : x=='c' ? 'G' : x=='g' ? 'C' : x=='u' ? 'A' : x 
-
-// Set up the word size shifting for denoising
-#ifndef WORDTYPE
-#define WORDTYPE uint32_t
-#endif
-#ifndef KMER
-#define KMER 8
-#endif
-unsigned WORDSIZE=KMER;
-unsigned WSHFT = (((sizeof(WORDTYPE)*4) << 1) - 2), 
-	RSHFT = sizeof(WORDTYPE) * 8 - KMER*2; // Later auto-set as well to ((WORDSIZE << 1) - 2)
-size_t MAXLEN; 
-WORDTYPE A_ID, C_ID, G_ID, T_ID; // Will be defined later in PREP_WORDS
-WORDTYPE *C2XbL;
-
-// Prepares word lookup matrix, kmer bounds, bitshift profiles
-#define PREP_WORDS() \
-{ \
-	if (KMER > sizeof(WORDTYPE) * 4) {printf("invalid K for wordsize\n"); return 1; } \
-	MAXLEN = (size_t)1 << (WORDSIZE * 2); \
-	WSHFT = (((sizeof(WORDTYPE)*4) << 1) - 2); \
-	RSHFT = sizeof(WORDTYPE) * 8 - KMER*2; \
-	A_ID = (WORDTYPE)0; C_ID = (WORDTYPE)1 << WSHFT; \
-	G_ID = (WORDTYPE)2 << WSHFT; T_ID = (WORDTYPE)3 << WSHFT; \
-	C2XbL = calloc(128,sizeof(WORDTYPE));\
-	C2XbL['a'] = A_ID; C2XbL['A'] = A_ID; \
-	C2XbL['c'] = C_ID; C2XbL['C'] = C_ID; \
-	C2XbL['g'] = G_ID; C2XbL['G'] = G_ID; \
-	C2XbL['t'] = T_ID; C2XbL['T'] = T_ID; \
-}
-
-/** 
- *  Utility functions
- */
 // Swaps two characters in a vector
 inline void swap(char ***a, int i, int j) 
 	{ char **t = *(a+i); *(a+i) = *(a+j); *(a+j) = t; }
 inline void vecswap(char ***a, int i, int j, int n) 
 	{ while (n-->0) swap(a, i++, j++); }
-
-// Specialized qcomp comparator functions for pointer indexing
-int xcmp(register const char *str1, register const char *str2) {
-	while (*str1 == *str2++) if (!*str1++) return 0; 
-	return (*(const unsigned char *)str1 - *(const unsigned char *)(str2 - 1));
-}
-int ycmp(register const char *str1, register const char *str2) {
-	while (*str1 == *str2++) if (!*str1++) return 0; 
-	return *str1 && *(str2 - 1); //(*(const unsigned char *)str1 - *(const unsigned char *)(str2 - 1));
-}
-inline int ucmp(int1, int2) register const unsigned int *int1, *int2; {
-	return **(unsigned **)int1 - **(unsigned **)int2; 
-}
-inline int comp(int1, int2) register const void *int1, *int2; {
-	return *(unsigned *)int1 - *(unsigned *)int2; 
-}
-int cmp64u(int1, int2) register const void *int1, *int2; {
-	return *(uint64_t *)int1 < *(uint64_t *)int2 ? -1 : 
-		*(uint64_t *)int1 > *(uint64_t *)int2; 
-}
-// Specialized inline character-based binary string search
-inline size_t crBST(char *key, size_t sz, char **String) {
-	char **p = String; //, *ref_s, *key_s; 
-	while (sz) {
-		size_t w = sz >> 1; //ref_p = p + w + 1;
-		char *ref_s = *(p+w+1), *key_s = key;
-		
-		while (*ref_s == *key_s++) if (!*ref_s++) return p+w+1-String; 
-		if (*ref_s < *(key_s-1)) { p+=w+1; sz-=w+1; }
-		else sz = w;
-	}
-	return p - String;
-}
-
 // Returns median of ints, used in twrqs
 inline int med3func(char ***a, int ia, int ib, int ic, int depth) {
 	int va, vb, vc;
@@ -138,43 +161,20 @@ inline int med3func(char ***a, int ia, int ib, int ic, int depth) {
 		(vb < vc ? ib : (va < vc ? ic : ia ) ) : 
 		(vb > vc ? ib : (va < vc ? ia : ic ) ); 
 } 
-
 // Insertion sort delegated to by twrqs
 inline void inssort(char ***a, int n, int depth) {
 	int i, j;
 	for (i = 1; i < n; i++) for (j = i; j > 0; j--) {
-		if (xcmp(**(a+j-1)+depth, **(a+j)+depth) <= 0) break;
+		if (strcmp(**(a+j-1)+depth, **(a+j)+depth) <= 0) break;
 		swap(a, j, j-1);
 	} 
 }  
-
-// Counting sort, for bins of k-mers in denoising
-typedef uint64_t type;   
-type * countSrt(type *array, size_t length) {
-	type *ptr = array, max = *array;
-	size_t ctr = length;
-	while (--ctr) if (*++ptr > max) max = *ptr;
-	
-	type *Countarr = calloc(max,sizeof(type)), *caP = Countarr - 1;
-	ptr = array - 1; ctr = length;
-	do ++Countarr[*++ptr]; while (--ctr);
-	type *new = malloc(length * sizeof(type));
-	ptr = new - 1; ctr = max + 1;
-	//if (!ctr) return 0;
-	do {
-		type reps = *++caP;
-		while (reps--) *++ptr = caP - Countarr;
-	} while (--ctr);
-	free(Countarr);
-	return new;
-}
-
-// 3-way Radix Quicksort (Dobbs-optimized)
+// 3-way Radix Quicksort 
 void twrqs(char ***a, unsigned n, int depth) {
 	if (n < CUTOFF) { inssort(a, n, depth); return; }
 	unsigned pl = 0, pm = n >> 1, d;
 	int le, lt, gt, ge, r, v, pn = n-1;
-	// If large enough, get median of median
+	// if large enough, get median of median
 	if (n > MEDCUT) {
 		d = n >> 3;
 		pl = med3(pl, pl+d, pl + (d << 1));
@@ -190,7 +190,7 @@ void twrqs(char ***a, unsigned n, int depth) {
 		return;
 	}
 	lt = le; gt = ge = n-1;
-	// Core QS module. Partitions the data recursively
+	// core QS module; partition the data recursively
 	for (;;) {
 		for ( ; lt <= gt && ch(lt) <= v; lt++)
 			if (ch(lt) == v) swap(a, le++, lt);
@@ -208,70 +208,98 @@ void twrqs(char ***a, unsigned n, int depth) {
 		twrqs(a + n-(ge-gt), ge-gt, depth); 
 } 
 
-// Print large numbers of arbitrary type (WORDTYPE)
-int print_bignum(WORDTYPE n) {
-  if (n == 0)  return printf("0\n");
-
-  char str[40] = {0}; // log10(1 << 128) + '\0'
-  char *s = str + sizeof(str) - 1; // Start at the end
-  while (n != 0) {
-    if (s == str) return -1; // Never happens
-
-    *--s = "0123456789"[n % 10]; // Save last digit
-    n /= 10;                     // Drop last digit
-  }
-  return printf("%s", s);
-}
-
-// Generates, permutes, and displays a test word from type WORDTYPE
-void testWord() {
-	char *testSeq = "ACGTTGACAACCCT\0", *testSeqP = testSeq;
- 	WORDTYPE hoho= 0; 
-	do {
-		printf("Loop (%d): %u. ", (unsigned)(testSeqP - testSeq), hoho);
-		hoho += C2Xb(*testSeqP);
-		printf("After '%c' (%u): %u.\n", *testSeqP, C2X(*testSeqP), hoho);
-		// Replay what's inside hoho, letter by letter.
-		size_t x=WORDSIZE; WORDTYPE hohoTemp = hoho; char* hi = calloc(WORDSIZE+1,1); //"XXXXXXXX\0"; 
-		memset(hi,'X',WORDSIZE);
-		while (x--) {
-			WORDTYPE temp = hohoTemp >> WSHFT;
-			printf("Temp: %u ('%c')\n", temp, X2C(temp));
-			hi[x] = X2C(temp);
-			hohoTemp <<= 2;
-		}  
-		printf("hi: %s\n", hi);
-		hoho >>= 2;
-		printf("After right shift: ");
-		print_bignum(hoho); 
-		printf("\n");
+inline size_t crBST(char *key, size_t sz, char **String) {
+	char **p = String;
+	while (sz) {
+		size_t w = sz >> 1; 
+		char *ref_s = *(p+w+1), *key_s = key;
 		
-	} while (*++testSeqP);
+		while (*ref_s == *key_s++) if (!*ref_s++) return p+w+1-String; 
+		if (*ref_s < *(key_s-1)) { p+=w+1; sz-=w+1; }
+		else sz = w;
+	}
+	return p - String;
 }
 
-/** 
- * Main filter algorithm. Parameters are as follows 
- * INPUT	in_reads.fa:			sequence reads to be processed
- * OUTPUT	out_filtered.fa:		filtered fasta to feed to the aligner (Bowtie2)
- *			out_sampDB:				bookkeeping DB required by ninja_parse as an input parameter
- *			<trim> (optional):		number of base pairs to keep in each sequence, trims ends of sequences
- *			[RC] (optional):		reverse-complement sequences
- *			[D <x.y>] (optional):	denoise at x duplicates and kmer rarity y
- * 
- */
-int main( int argc, char *argv[] )
-{
-	// Requires 3 parameters for execution. Else, displays below info
+int SB2Cmp(blk1, blk2) register const void *blk1, *blk2; {
+	if (((SortBlock2 *)blk1)->word < ((SortBlock2 *)blk2)->word) return -1;
+	if (((SortBlock2 *)blk1)->word > ((SortBlock2 *)blk2)->word) return 1;
+	if (((SortBlock2 *)blk1)->length == ((SortBlock2 *)blk2)->length) return 0;
+	if (((SortBlock2 *)blk1)->length < ((SortBlock2 *)blk2)->length) return -1;
+	return 1;
+}
+
+void superSort2(uint32_t *SeqIX, WTYPE **base, uint16_t *Lengths, 
+int depth, size_t beginRange, size_t endRange) {
+	size_t n = endRange - beginRange; // endRange is one after last index
+	SortBlock2 *BinPtrs = malloc(n * sizeof(SortBlock2)); 
+	if (!BinPtrs) {puts("Error-MemoryBinPtrs"); return;}
+	size_t depthSize = (depth+1) * PACKSIZE;
+	size_t i = beginRange; for (; i < endRange; ++i) 
+		BinPtrs[i-beginRange] = (SortBlock2){base[SeqIX[i]][depth],SeqIX[i],
+			Lengths[SeqIX[i]] <= depthSize ? Lengths[SeqIX[i]] : 0};
+	#ifdef USE_QSORT
+		SB2_qsort(BinPtrs,n);
+	#else
+		qsort(BinPtrs, n, sizeof(*BinPtrs), SB2Cmp);
+	#endif
+	for (i=beginRange; i < endRange; ++i) 
+		SeqIX[i] = BinPtrs[i-beginRange].ix; 
+	free(BinPtrs);
+	
+	#define CASCADE_MERGE() \
+	if (i != lastUniq + 1) { \
+		/* Merge swapping indices for truncated pairs */ \
+		size_t z = lastUniq; for (; z < i; ++z) { \
+			if (Lengths[SeqIX[z]] <= depthSize) { \
+				 if (z > lastUniq) { \
+					/* swap this ix with the ix at lastUniq++ */ \
+					uint32_t temp = SeqIX[z]; \
+					SeqIX[z] = SeqIX[lastUniq]; \
+					SeqIX[lastUniq] = temp; \
+				}  \
+				++lastUniq; \
+			} \
+		} \
+		/* Spawn a new sort on the remainder */ \
+		if (lastUniq < i-1) \
+			superSort2(SeqIX, base, Lengths, depth+1, lastUniq, i); \
+	}
+	
+	// Check for duplicates; for each set, move truncations to top
+	WTYPE curElem = base[SeqIX[beginRange]][depth]; 
+	size_t lastUniq = beginRange;
+	for (i=beginRange + 1; i < endRange; ++i) {
+		if (base[SeqIX[i]][depth] != curElem) {
+			CASCADE_MERGE();
+			curElem = base[SeqIX[i]][depth];
+			lastUniq = i;
+		}
+	}
+	CASCADE_MERGE(); // end cap
+}
+	
+int main( int argc, char *argv[] ) {
+	clock_t start; double cpu_time_used; start = clock(); // profiler
+	// Debugging statements
+	printf("type size=%u, shift=%u, pack=%u\n", sizeof(WTYPE), RSHFT, PACKSIZE);
+	printf("max int size=%u/%u\n",sizeof(unsigned),sizeof(uint64_t));
+	printf("Size of SortBlock2=%u\n",sizeof(SortBlock2));
+	//return 0;
 	if ( argc < 4 || argc > 8 ) PRINT_USAGE();
-	PREP_WORDS(); // Prepares for kmer denoising by creating WORDTYPE objects
-	// Flags for optional arguments
-	int doRC = 0, trim = 0; 
-	double filt_i = 0.f;
-	unsigned copyNumThres = 0; 
+	char *inputFilename = argv[1], *outputFasta = argv[2], *outputDB = argv[3];
+	FILE *fp = fopen(inputFilename, "rb");
+	if (fp == NULL) { puts("Invalid input"); return 2; }
+	FILE *off = fopen(outputFasta, "wb"), *ofd = fopen(outputDB,"wb");
+	if (!off || !ofd) { puts("Invalid output file(s)"); return 2; }
+	size_t trim = UINT16_MAX;
+	int doRC = 0; 
+	double filt_i = 0.f; unsigned copyNumThres = 0; // denoisers (k-filter not yet implemented)
 	// Denoises at default intensity
 	if (argc > 4 && !strcmp(argv[argc-1],"D")) { 
-		filt_i = .0001f;
-		printf("Performing NINJA statistical denoising of DEFAULT intensity %f (%.3f%%)\n", filt_i,filt_i*100.f);
+		//filt_i = .0001f; // k-filtering not yet implemented!
+		//printf("Performing NINJA statistical denoising of DEFAULT intensity %f (%.3f%%)\n", filt_i,filt_i*100.f);
+		puts("k-denoise not implemented yet.");
 		--argc;
 	}
 	// Denoises at specified intensity in the form x.y
@@ -291,7 +319,10 @@ int main( int argc, char *argv[] )
 		}
 		argc -= 2;
 	}
-	// Flags for reverse complementing
+	//(WTYPE *Seq1, WTYPE *Seq2, uint16_t len1, uint16_t len2)
+	int (*cmpF)(WTYPE *, WTYPE *, uint16_t, uint16_t) = 
+		copyNumThres ? &ycmp : &zcmp;
+	if (!copyNumThres) copyNumThres = 1 ; // filt_i ? -1 : 1; // uncomment when .y implemented
 	if (argc > 4 && !strcmp(argv[argc-1],"RC")) {
 		printf("Reverse complementing the sequences.\n");
 		doRC = 1; --argc;
@@ -301,319 +332,158 @@ int main( int argc, char *argv[] )
 		trim = atoi(argv[argc-1]);
 		printf("Trimming input sequences to %d bases.\n", trim);
 	}
-	char *inmode = "rb", *outmode = "wb"; 
-	clock_t start; double cpu_time_used; start = clock();
 	
-	// Takes in a file with all the user's short reads for later sorting/filtering
-	// Opens all three required parameters as files. Displays specific error upon failure.
-	FILE *seqs = fopen(argv[1], inmode);
-	if (!seqs) { printf("Error: cannot open input reads fasta.\n"); return 1; }
-	FILE *filtered = fopen(argv[2], outmode);
-	if (!filtered) {printf("could not open filtered reads output file.\n"); return 1; }
-	FILE *sampDBfile = fopen(argv[3], outmode);
-	if (!sampDBfile) {printf("could not write to sample DB.\n"); return 1; }
+	C2Xb = calloc(128,sizeof(WTYPE));
+	C2Xb['a'] = 0; C2Xb['A'] = 0; 
+	C2Xb['c'] = 1; C2Xb['C'] = 1; 
+	C2Xb['g'] = 2; C2Xb['G'] = 2;
+	C2Xb['t'] = 3; C2Xb['T'] = 3;
+	//ctx_t *ctx = init_fgets_sse2 (LINELEN*32); // delete
+	//next_t *ne; // delete
 	
-#ifdef DEBUG
-	if (filt_i) 
-		printf("WORDSIZE: %I64u, KMER: %u, MAXLEN: %I64u, WSHFT: %u, RSHFT: %u\n",WORDSIZE,KMER,MAXLEN,WSHFT,RSHFT); 
-#endif
+	size_t numElem = 1000, ns=0;
+	char **Samples = malloc(numElem*sizeof(char *));
+	WTYPE **ReadsX = malloc(numElem*sizeof(WTYPE *));
+	uint16_t *Sizes = calloc(numElem,sizeof(uint16_t));
+	char *line = malloc(LINELEN + 1); // read up to  65k
 	
-	// Finds length of input sequence FASTA file, in bytes
-	fseek(seqs, 0, SEEK_END); size_t fsize = ftell(seqs); fseek(seqs, 0, SEEK_SET); 
-
-	// Reads seq file as a string, stores in "string." Displays error if file too large
-	char *string = malloc(fsize + 1), *stringP = string - 1; 
-	if (!string) { printf("Insufficient memory for short read read-in.\n"); return 1; }
-	fread(string, fsize, 1, seqs); // Reads into string: elems of fsize bytes, 1 elem, using ifp pointer
-	fclose(seqs); // Closes the file
-	
-	// Max read length: 100KB. Max sample length: 1KB. 
-	// Outputs specific error if limits exceeded. 
-	size_t numEntries = 0, curLen = 1000;  // Floating tally
-	int RLEN = 100000, SLEN = 1024; // Common sense max bounds on read and sample lengths
-	char *seqBuf = malloc(RLEN), *seqBufP = seqBuf; // Assumption: no read longer than 100KB
-	char **seqArr = malloc(curLen * sizeof(char *)), **seqArrP = seqArr,
-	*smpBuf = malloc(SLEN), *smpBufP = smpBuf, // Assumption: no sample name > 1KB
-	**smpArr = malloc(curLen * sizeof(char *)), **smpArrP = smpArr,
-	*thisSeq, *thisSmp;
-	if (!smpBuf || !smpArr || !seqArr) 
-		{ printf("Cannot allocate post-run memory.\n"); return 1; }
-	
-	// Main parsing loop. Also performs kmer generation and read trimming
-	size_t smpCharNum = 0, bufCharNum = 0, inSeq = 0, seqChars = 0, k = 0;
-	// Sets up a kmer dictionary for all possible kmers
-	uint64_t *words = calloc(filt_i ? MAXLEN : 1, sizeof(uint64_t)), *wordPtr = words;
-	size_t sum = 0;
-	if (!words) {printf("out of word allocation memory.\n"); return 1;}
-	WORDTYPE word = 0;  // Uses kmer as index into "words" dictionary
-	
-	stringP = string - 1; 
-	while (*++stringP) { 
-		// Skips '>'
-		if (*stringP == '>' || *stringP == '-') { continue; } 
-		else if (*stringP == '\n') { 
-			// Prepares to parse sequence
-			if (!inSeq) { 
-				if (++numEntries == curLen) { // Resizes all floating arrays
-					size_t offset = seqArrP - seqArr; 
-					seqArr = realloc(seqArr, (curLen *= 2) *sizeof(char *));
-					smpArr = realloc(smpArr, curLen *sizeof(char *));
-					if (!seqArr || !smpArr) 
-						{ printf("out of resizing memory.\n"); return 1; }
-					seqArrP = seqArr + offset;
-					smpArrP = smpArr + offset;
-				}
-				*smpArrP = malloc(smpCharNum + 1);
-#ifdef DEBUG
-				if (!*smpArrP) { printf("sample memory depleted!\n"); return 1; }
-#endif
-				thisSmp = *smpArrP++;
-				smpBufP = smpBuf;
-				do *thisSmp++ = *smpBufP++; while (--smpCharNum);
-				memset(thisSmp, '\0', 1);
-				seqBufP = seqBuf;
-				bufCharNum = 0;
-			}
-			// Prepares to parse header
-			else { 
-				*seqArrP = malloc(bufCharNum + 1);
-#ifdef DEBUG
-				if (!*seqArrP) { printf("sequence memory depleted!\n"); return 1; }
-#endif
-				thisSeq = *seqArrP++;
-				seqBufP = seqBuf;
-				do *thisSeq++ = *seqBufP++; while (--bufCharNum);
-				memset(thisSeq, '\0', 1);
-				smpBufP = smpBuf;
-				smpCharNum = 0;
-				if (filt_i) {
-					word = 0; k = 0;
-				}
-			}
-			inSeq ^= 1;  // Toggles between header and sequence for storing
+	// new (testing)
+	/* char *buffer = malloc(100*LINELEN+1); // read up to 6.5mb
+	buffer[100*LINELEN] = 0;
+	size_t numRead = 0; */
+	while (line = fgets(line,LINELEN,fp)) { // old
+	//while (numRead = fread(buffer,1,100*LINELEN,fp)) { // new (testing)
+		if (ns == numElem) {
+			numElem *= 2;
+			Samples = realloc(Samples,numElem * sizeof(char *));
+			ReadsX = realloc(ReadsX, numElem * sizeof(WTYPE *));
+			Sizes = realloc(Sizes, numElem*sizeof(uint16_t));
+			if (!Samples || !ReadsX || !Sizes) {puts("Error in resize"); return 0;}
+			memset(Sizes+numElem/2 + 1,0,(numElem/2-1)*sizeof(uint16_t));
 		}
-		// Parses the sequence
-		else if (inSeq) { 
-			*seqBufP++ = *stringP;
-			++bufCharNum;
-			// Generates kmer at current letter
-			if (filt_i) {
-				word += C2XbL[*stringP];
-				if (++k >= WORDSIZE) { 
-					++*(words + (word >> RSHFT)); // Increments word count at ix=word
-					++sum; // Increments total sum of words considered
-				}
-				word >>= 2u; // Left-shift bits in current word for kmer
-			}
-#ifdef DEBUG
-			if (bufCharNum > RLEN) {printf("sequence buffer overflow\n"); return 1; }
-#endif
-			// Trims sequences if user specified
-			if (trim && bufCharNum >= trim) { while (*++stringP != '\n'); --stringP; }
-		}
-		else { // Finds sample tag in current header
-			if (*stringP == '_') { // Fast-forwards to end of line after '_'
-				while (*++stringP != '\n'); 
-				--stringP; 
-				continue;
-			} 
-			*smpBufP++ = *stringP;
-			++smpCharNum;
-#ifdef DEBUG
-			if (smpCharNum > SLEN) {printf("sample name buffer overflow\n"); return 1; }
-#endif
-		}
-	}
-	// Reallocate the active vs paged memory on sequence and sample arrays
-	seqArr = realloc(seqArr, numEntries * sizeof(char *));
-	smpArr = realloc(smpArr, numEntries * sizeof(char *));
-	
-#ifdef PROFILE
-	printf("->Short read parse: %f\n", ((double) (clock() - start)) / CLOCKS_PER_SEC); start = clock();
-#endif
-	printf("Total short reads: %lu\n", numEntries);
-	// Prepares for denoising
-	uint64_t *sortWrd;
-	size_t len = MAXLEN, rareCutoff, rareIX;
-	double rareThres = filt_i ? filt_i : -1.f;
-	unsigned nThres;
-	
-	// Considers kmer component of denoising
-	if (filt_i) {
-		wordPtr = words;
-		sortWrd = malloc(MAXLEN *sizeof(uint64_t));
-		uint64_t *sortWrdPtr = sortWrd;
-		size_t lenC = MAXLEN; 
-		do *sortWrdPtr++ = *wordPtr++; while (--lenC);
-		qsort(sortWrd, MAXLEN, sizeof(uint64_t), cmp64u);
-		//sortWrd = countSrt(words,MAXLEN);
+		// copy in the sample name up to _ or null minus 1
+		char *src = line + 1;
 		
-#ifdef PROFILE
-		printf("->SortIX: %f\n", ((double) (clock() - start)) / CLOCKS_PER_SEC); start = clock();
-#endif
-		wordPtr = sortWrd-1; // Resets pointer head to sorted array
-		rareCutoff = rareThres * sum;
-		rareIX = 0; sum = 0;
-		// Traverses distribution until reaches rarity threshold
-		while ((sum += *++wordPtr) < rareCutoff) ++rareIX; 
-		if (!rareIX) printf("Warning: k=%u may result in spurious denoising.\n",KMER);
-		nThres = sortWrd[rareIX];
-#ifdef DEBUG
-		printf("rareCutoff=%u, rareThres=%f, rareDupes=%u, %%Coverage=%f\n",rareCutoff, rareThres, nThres,(double)(rareIX+1)/MAXLEN);
-#endif
-		if (nThres == 1) {
-			printf("Chosen K-mer denoising level has no effect.\n");
-			filt_i = 0;
-			--copyNumThres;
-		}
+		while (*src != '_' && *src != ' ' && *src != '\n') ++src; 
+		Samples[ns] = malloc(src - line);
+		if (!Samples[ns]) {puts("Not enough Samples[ns] mem"); return 0;}
 		
-	}
-	// Sorts the sequences and runs deduplification
-	// 1) Allocates memory and checks if memory available
-	char ***parray = malloc(numEntries * sizeof(char **)), ***pp = parray,
-	***smparray = malloc(numEntries * sizeof(char **)), ***smpp = smparray,
-	**SmpDD = malloc(numEntries * sizeof(char *)), **ddp = SmpDD;
-	if (!parray || !smparray || !SmpDD) 
-		{ printf("Out of post-memory: parray.\n"); return 1; }
+		char *dest = Samples[ns]; //char *src = line + 1;
+		char *beginSample = line + 1; while (beginSample < src) 
+			*dest++ = *beginSample++;
+		*dest = 0;
+
+		// copy in the encoded sequence
+		if (!(line = fgets(line,LINELEN,fp))) 
+			{ puts("Error reading file."); return 0; }
+		src = line;
 		
-	// 2) Stores addresses of strings in auxiliary array for pointer sorting
-	seqArrP = seqArr; smpArrP = smpArr;
-	size_t nE = numEntries; do { *pp++ = seqArrP++; *smpp++ = smpArrP++; } while (--nE); 
-	
-	// 3) Sorts arrays on pointers generated above
-	twrqs(parray, numEntries, 0);
-	twrqs(smparray, numEntries, 0);
-	
-	// 4) De-dupes the sorted sample list and makes a parallel counts array
-	unsigned copies = 1, dupes = 0; 
-	nE = numEntries; smpp = smparray;
-	while (--nE) {
-		if (!xcmp(**smpp, **(smpp + 1))) ++dupes;
-		else *ddp++ = **smpp;
-		++smpp;
-	}
-	unsigned numUniq = numEntries - dupes, nU = numUniq;
-	if (ddp - SmpDD <= numUniq) *ddp = **smpp; // endcap
-	printf("Unique samples: %d\n", numUniq);
-	// Writes into sample database file in format: sample number \n all samples
-	fprintf(sampDBfile, "%u\n", numUniq);
-	SmpDD = realloc(SmpDD, numUniq * sizeof(char *)); ddp = SmpDD; 
-	nU = numUniq; do fprintf(sampDBfile, "%s\n", *ddp++); while (--nU);
-	
-#ifdef PROFILE
-	printf("->Short read sample prep: %f\n", ((double) (clock() - start)) / CLOCKS_PER_SEC); start = clock();
-#endif
-	
-	// Creates counts array of integers parallel to the unique samples array
-	unsigned *Counts = calloc(numUniq, sizeof (unsigned int)), *cpp = Counts;
-	if (!Counts) {printf("unable to allocate counts\n"); return 1;}
-	copies = 1; dupes = 0; 
-	nE = numEntries; 
-	pp = parray; 
-	smpBuf = malloc(SLEN*100); smpBufP = smpBuf; // Assumption: no sample string > SLEN * 100
-	if (!smpBuf) {printf("Out of memory: concatSample\n"); return 1; }
-	unsigned rix = 0;
-	int six;
-	unsigned totCopies = 0;
-	seqBufP = seqBuf + RLEN - 2; // Re-uses seqBuf and seqBufP
-	memset(seqBufP,'\0',1); // termi-null
-
-#ifdef LOGK
-	FILE *log = fopen("bad_k_log.txt", outmode);
-	FILE *log_dn = fopen("log_dn.txt", outmode);
-#endif
-
-	// Stores occurances of words meeting rarity threshold
-	unsigned wBad = 0; 
-	int (*cmpF)(register const char *, register const char *) = copyNumThres ? &ycmp : &xcmp;
-	//int *cmpF = copyNumThres ? ycmp(const char *, const char *) : xcmp(const char *, const char *);
-	if (!copyNumThres) copyNumThres = filt_i ? -1 : 1;
-	size_t numUniq_mx = numUniq - 1;
-	
-	// Performs deduplication and denoising using sorted data
-	//double propBad = 0;
-	nE = numEntries; while (nE--) {
-		++*(Counts + (six=crBST(*(smpArr + (*pp - seqArr)), numUniq_mx, SmpDD))); // specific count
-		if (nE && !cmpF(**pp, **(pp + 1))) { // Dupe! 
-			++copies; ++dupes; 
-		} 
-		else { // Writes the last sequence and its number of copies
-			smpBufP = smpBuf; 
-			six = 0;
-			char *read = **pp;
-			unsigned rLen = 0;
-			double propBad = 1.f;
-			if (filt_i) { // && copies <= copyNumThres) {
-				
-				k = 0; word = 0; wBad = 0;
-#ifdef LOGK
-				fprintf(log,"\n");
-#endif
-				unsigned lastBad = 0;
-				do {
-					++rLen;
-					word += C2XbL[*read];
-					if (++k >= WORDSIZE) {
-						if (*(words + (word >> RSHFT)) < nThres) {
-							if (rLen > lastBad) {
-								++wBad;
-								lastBad = rLen + WORDSIZE - 1;
-#ifdef LOGK
-								fprintf(log,"0 ");
-							} else fprintf(log,"* ");
-						} else fprintf(log,"1 ");
-#else
-							}
-						}
-#endif
-					}
-					word >>= 2u; 
-				} while (*++read);
-				propBad = wBad; // (double)wBad/rLen;
-#ifdef LOGK
-				fprintf(log,"\nCopies: %u, Bad=%u, prop=%f", copies,wBad,propBad);
-#endif
-			} 
-			if (copies >= copyNumThres || (!propBad && 
-				(copyNumThres==-1 || (copies > (int)copyNumThres - 2)))) { 
-#ifdef LOGK
-				fprintf(log_dn,"%u: %u\n", rix, copies);
-#endif
-				nU = numUniq; cpp = Counts; do {
-					if (*cpp) {
-						smpBufP += sprintf(smpBufP, "%u:%u:", six, *cpp);
-						*cpp = 0;
-					}
-					++six; ++cpp;
-				} while (--nU);
-				fprintf(sampDBfile, "%s\n",smpBuf);
-				read = **pp;
-				// Takes the reverse complement of the read, if user specified
-				if (doRC) { 
-					do *--seqBufP = CMPT(*read); while (*++read);
-					read = seqBufP;
-					seqBufP = seqBuf + RLEN - 2;
-				}
-				fprintf(filtered, ">%u\n%s\n", rix++, read);
-				totCopies += copies;
+		register size_t length = strlen(src);
+		if (src[length-1] == '\n') --length; // lop off newline(s)
+		if (src[length-1] == '\r') --length; 
+		if (trim < length) length = trim;
+		
+		size_t numPacks = length/PACKSIZE;
+		if (numPacks * PACKSIZE < length) ++numPacks;
+		
+		Sizes[ns] = length; 
+		ReadsX[ns] = malloc(numPacks*sizeof(WTYPE));
+		if (!ReadsX[ns]) {puts("Bad ReadsX[ns] mem"); return 1; }
+		
+		WTYPE *thisPack = ReadsX[ns];
+		WTYPE clump; int k;
+		while (length--) {
+			k = 1; clump = C2Xb[*src++];
+			while (k < PACKSIZE && length) {
+				clump <<= 2u;
+				clump += C2Xb[*src++];
+				++k; --length;
 			}
-			else {
-				memset(Counts,0,numUniq*sizeof (unsigned int));
-#ifdef LOGK
-				fprintf(log_dn,"%BAD u: %u\n",rix,copies);
-#endif
-			}
-			copies = 1;
+			if (k != PACKSIZE) clump <<= (2* (PACKSIZE-k));
+			*thisPack++ = clump;
 		}
-		++pp;
+		++ns;
 	}
-	// Program ran successfully. Outputs summaries to user
-	printf("Dupes: %d, total copies: %d (%f%%)\n", dupes, totCopies, (double)totCopies/numEntries*100);
-	printf("Optimized fasta written.\n");
+	fclose(fp);
+	free(line);
+	
+	// Shrink data structures for more memory
+	Samples = realloc(Samples,ns * sizeof(char *));
+	ReadsX = realloc(ReadsX, ns * sizeof(WTYPE *));
+	Sizes = realloc(Sizes, ns * sizeof(uint16_t));
 
+	//printf("Num of sequences: %u\n",ns);
+	if (ns > UINT32_MAX) {puts("Too many sequences (>4 bil)."); return 4;}
+	printf("Total reads considered: %u\n",ns);
 #ifdef PROFILE
-	printf("->Read prep and Fasta write: %f\n", ((double) (clock() - start)) / CLOCKS_PER_SEC); 
-	start = clock();
+	printf("->Short read parse: %f\n", 
+		((double) (clock() - start)) / CLOCKS_PER_SEC); start = clock();
 #endif
-	return 0;
+	
+	// Create index structure for sequences read (in 32-bit)
+	uint32_t *SeqIX = malloc(sizeof(uint32_t) * ns);
+	size_t k = 0; 
+	for (; k < ns; ++k) SeqIX[k] = k;
+	superSort2(SeqIX, ReadsX, Sizes, 0,0,ns);
+	printf("\nDONE SORTING. \n");
+	
+	char ***smpSrt = malloc(ns * sizeof(char **)),
+		**SmpDD = malloc(ns * sizeof(char *));
+	if (!smpSrt || !SmpDD) 
+		{ printf("Out of post-memory: parray.\n"); return 3; }
+	for (k=0; k < ns; ++k) smpSrt[k] = &Samples[k];
+	twrqs(smpSrt, ns, 0);
+	*SmpDD = **smpSrt; // store first sample
+	unsigned x = 1; for (k=1; k < ns; ++k) 
+		if (strcmp(*smpSrt[k-1],*smpSrt[k])) SmpDD[x++] = *smpSrt[k];
+	free(smpSrt);
+	SmpDD = realloc(SmpDD,sizeof(char*)*x);
+	printf("%d Samples found.\n",x);
+	fprintf(ofd, "%u\n", x);
+	for (k=0; k < x; ++k) fprintf(ofd,"%s\n",SmpDD[k]);
+	
+#ifdef PROFILE
+	printf("->Short read sample prep: %f\n", 
+		((double) (clock() - start)) / CLOCKS_PER_SEC); start = clock();
+#endif
+	// Create counts array of integers parallel to the unique samples array
+	unsigned *Counts = calloc(x, sizeof(unsigned));
+	if (!Counts) {puts("unable to allocate counts"); return 3;}
+	#define WRITE_SUPPORTED_DUPE() {\
+		six = 0; \
+		if (copies >= copyNumThres) { \
+			int y = 0; for (; y < x; ++y) \
+				if (Counts[y]) fprintf(ofd,"%u:%u:",y,Counts[y]), Counts[y] = 0; \
+			fprintf(ofd,"\n"); \
+			if (doRC) fprintf(off,">%u\n%s\n",rix++, decodeStringXRC(ReadsX[prevIX], \
+				Sizes[prevIX],word,string)); \
+			else fprintf(off,">%u\n%s\n", rix++, decodeStringX(ReadsX[prevIX], \
+				Sizes[prevIX],word,string)); \
+		} \
+		else memset(Counts,0,x*sizeof(unsigned)); \
+		copies = 1; \
+	}
+	
+	unsigned copies = 1, dupes = 0, six, rix=0;
+	++Counts[crBST(Samples[*SeqIX],x-1,SmpDD)]; // add first count (counts as a copy)
+	char *string = malloc(UINT16_MAX), *word = calloc(PACKSIZE+1,1);
+	unsigned prevIX, thisIX;
+	for (k=1; k < ns; ++k) {
+		prevIX = SeqIX[k-1]; thisIX = SeqIX[k];
+		++Counts[crBST(Samples[thisIX],x-1,SmpDD)];
+		//++*(Counts + crBST(*(Samples+*(SeqIX+k)),x-1,SmpDD));
+		if (cmpF(ReadsX[prevIX],ReadsX[thisIX],Sizes[prevIX], Sizes[thisIX])) 
+			WRITE_SUPPORTED_DUPE()
+		else ++copies, ++dupes;
+	}
+	prevIX = thisIX;
+	WRITE_SUPPORTED_DUPE();
+	
+#ifdef PROFILE
+	printf("->Mapping and file writing: %f\n", 
+		((double) (clock() - start)) / CLOCKS_PER_SEC); start = clock();
+#endif
+	// todo: free more, process more
+	free (SeqIX);
+	free (string);
 }
