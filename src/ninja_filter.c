@@ -15,11 +15,10 @@
 	printf( "<trim> (optional, numeric): specify the number of bases to keep\n");\
 	printf( "[RC] (optional): if \"RC\" is specified, reverse-complement seqs\n");\
 	printf( "[D] <x.y> (optional): Denoise [duplicates x, kmer rarity y]\n");\
-	printf( "(Note: .y k-mer filtering is NOT YET IMPLEMENTED in minifilter.\n");\
+	printf( "Note: .y k-mer filtering is NOT YET IMPLEMENTED in minifilter.\n");\
 	return 2;\
 }
 
-//#include "fgets2.c"
 #define LINELEN UINT16_MAX
 #ifndef PACKSIZE
 	#define PACKSIZE 32
@@ -218,7 +217,23 @@ inline size_t crBST(char *key, size_t sz, char **String) {
 		if (*ref_s < *(key_s-1)) { p+=w+1; sz-=w+1; }
 		else sz = w;
 	}
-	return p - String;
+	char *ref_s = *p, *key_s = key;
+	while (*ref_s == *key_s++) if (!*ref_s++) return p - String;
+	return -1;
+	//return p - String; // replace last 3 lines for unsave ver
+}
+
+ long crBSTnm(char **String, size_t sz, char *key) {
+	char **p = String; //, *ref_s, *key_s; 
+	while (sz) {
+		size_t w = sz >> 1;
+		char *ref_s = *(p+w+1), *key_s = key;
+		
+		while (*ref_s == *key_s++) if (!*ref_s++) return p+w+1-String; 
+		if (*ref_s < *(key_s-1)) { p+=w+1; sz-=w+1; }
+		else sz = w;
+	}
+	return strcmp(*p,key) ? -1 : p - String;
 }
 
 int SB2Cmp(blk1, blk2) register const void *blk1, *blk2; {
@@ -285,7 +300,6 @@ int main( int argc, char *argv[] ) {
 	printf("type size=%u, shift=%u, pack=%u\n", sizeof(WTYPE), RSHFT, PACKSIZE);
 	printf("max int size=%u/%u\n",sizeof(unsigned),sizeof(uint64_t));
 	printf("Size of SortBlock2=%u\n",sizeof(SortBlock2));
-	//return 0;
 	if ( argc < 4 || argc > 8 ) PRINT_USAGE();
 	char *inputFilename = argv[1], *outputFasta = argv[2], *outputDB = argv[3];
 	FILE *fp = fopen(inputFilename, "rb");
@@ -313,15 +327,16 @@ int main( int argc, char *argv[] ) {
 				printf("Performing NINJA replicon-denoising of constructed reps: %u\n", copyNumThres);
 			}
 			if (filt_i) { // Use the decimal remainder as kmer denoising
-				printf("Performing NINJA statistical denoising of intensity %f (%.3f%%)\n", filt_i,filt_i*100.f);
-				if (copyNumThres) ++copyNumThres;
+				filt_i = 0; // k-filter not yet implemented
+				//printf("Performing NINJA statistical denoising of intensity %f (%.3f%%)\n", filt_i,filt_i*100.f);
+				puts("WARNING: k-mer denoising not yet implemented in minifilter");
+				//if (copyNumThres) ++copyNumThres;
 			}
 		}
 		argc -= 2;
 	}
-	//(WTYPE *Seq1, WTYPE *Seq2, uint16_t len1, uint16_t len2)
 	int (*cmpF)(WTYPE *, WTYPE *, uint16_t, uint16_t) = 
-		copyNumThres ? &ycmp : &zcmp;
+		copyNumThres ? &ycmp : &zcmp; //zcmp can replace xcmp
 	if (!copyNumThres) copyNumThres = 1 ; // filt_i ? -1 : 1; // uncomment when .y implemented
 	if (argc > 4 && !strcmp(argv[argc-1],"RC")) {
 		printf("Reverse complementing the sequences.\n");
@@ -338,8 +353,6 @@ int main( int argc, char *argv[] ) {
 	C2Xb['c'] = 1; C2Xb['C'] = 1; 
 	C2Xb['g'] = 2; C2Xb['G'] = 2;
 	C2Xb['t'] = 3; C2Xb['T'] = 3;
-	//ctx_t *ctx = init_fgets_sse2 (LINELEN*32); // delete
-	//next_t *ne; // delete
 	
 	size_t numElem = 1000, ns=0;
 	char **Samples = malloc(numElem*sizeof(char *));
@@ -368,7 +381,7 @@ int main( int argc, char *argv[] ) {
 		Samples[ns] = malloc(src - line);
 		if (!Samples[ns]) {puts("Not enough Samples[ns] mem"); return 0;}
 		
-		char *dest = Samples[ns]; //char *src = line + 1;
+		char *dest = Samples[ns]; 
 		char *beginSample = line + 1; while (beginSample < src) 
 			*dest++ = *beginSample++;
 		*dest = 0;
@@ -412,7 +425,7 @@ int main( int argc, char *argv[] ) {
 	ReadsX = realloc(ReadsX, ns * sizeof(WTYPE *));
 	Sizes = realloc(Sizes, ns * sizeof(uint16_t));
 
-	//printf("Num of sequences: %u\n",ns);
+	printf("Num of sequences: %u\n",ns);
 	if (ns > UINT32_MAX) {puts("Too many sequences (>4 bil)."); return 4;}
 	printf("Total reads considered: %u\n",ns);
 #ifdef PROFILE
@@ -450,9 +463,8 @@ int main( int argc, char *argv[] ) {
 	unsigned *Counts = calloc(x, sizeof(unsigned));
 	if (!Counts) {puts("unable to allocate counts"); return 3;}
 	#define WRITE_SUPPORTED_DUPE() {\
-		six = 0; \
 		if (copies >= copyNumThres) { \
-			int y = 0; for (; y < x; ++y) \
+			for (int y = 0; y < x; ++y) \
 				if (Counts[y]) fprintf(ofd,"%u:%u:",y,Counts[y]), Counts[y] = 0; \
 			fprintf(ofd,"\n"); \
 			if (doRC) fprintf(off,">%u\n%s\n",rix++, decodeStringXRC(ReadsX[prevIX], \
@@ -464,26 +476,25 @@ int main( int argc, char *argv[] ) {
 		copies = 1; \
 	}
 	
-	unsigned copies = 1, dupes = 0, six, rix=0;
-	++Counts[crBST(Samples[*SeqIX],x-1,SmpDD)]; // add first count (counts as a copy)
+	unsigned copies = 1, dupes = 0, rix=0;
 	char *string = malloc(UINT16_MAX), *word = calloc(PACKSIZE+1,1);
 	unsigned prevIX, thisIX;
 	for (k=1; k < ns; ++k) {
 		prevIX = SeqIX[k-1]; thisIX = SeqIX[k];
-		++Counts[crBST(Samples[thisIX],x-1,SmpDD)];
-		//++*(Counts + crBST(*(Samples+*(SeqIX+k)),x-1,SmpDD));
+		++Counts[crBST(Samples[prevIX],x-1,SmpDD)];
 		if (cmpF(ReadsX[prevIX],ReadsX[thisIX],Sizes[prevIX], Sizes[thisIX])) 
 			WRITE_SUPPORTED_DUPE()
-		else ++copies, ++dupes;
+			else { ++copies; ++dupes; }
 	}
 	prevIX = thisIX;
+	++Counts[crBST(Samples[prevIX],x-1,SmpDD)]; // add last count
 	WRITE_SUPPORTED_DUPE();
 	
 #ifdef PROFILE
 	printf("->Mapping and file writing: %f\n", 
 		((double) (clock() - start)) / CLOCKS_PER_SEC); start = clock();
 #endif
-	// todo: free more, process more
+	// todo: free more, add k-mer filtering
 	free (SeqIX);
 	free (string);
 }
