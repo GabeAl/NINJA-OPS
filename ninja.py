@@ -488,14 +488,14 @@ def main(inputSeqsFile, folder, database, trim, RC, similarity, threads,
     global ninjaParseFile
     global verbose
     verbose = verboseBool
-    if osName.startswith("darwin") or osName.startswith("os"):			# Mac
-    	ninjaFilterFile = os.path.join(ninjaDirectory, os.path.join("bin", "ninja_filter_mac"))
-    	ninjaParseFile = os.path.join(ninjaDirectory, os.path.join("bin", "ninja_parse_filtered_mac"))
+    if osName.startswith("darwin") or osName.startswith("os"):            # Mac
+        ninjaFilterFile = os.path.join(ninjaDirectory, os.path.join("bin", "ninja_filter_mac"))
+        ninjaParseFile = os.path.join(ninjaDirectory, os.path.join("bin", "ninja_parse_filtered_mac"))
         if full_output:
             ninjaParseFile = os.path.join(ninjaDirectory, os.path.join("bin", "ninja_parse_filtered_with_log_mac"))
-    elif osName.startswith("win32") or osName.startswith("cygwin"):		# Windows and cygwin
-    	ninjaFilterFile = os.path.join(ninjaDirectory, os.path.join("bin", "ninja_filter.exe"))
-    	ninjaParseFile = os.path.join(ninjaDirectory, os.path.join("bin", "ninja_parse_filtered.exe"))
+    elif osName.startswith("win32") or osName.startswith("cygwin"):        # Windows and cygwin
+        ninjaFilterFile = os.path.join(ninjaDirectory, os.path.join("bin", "ninja_filter.exe"))
+        ninjaParseFile = os.path.join(ninjaDirectory, os.path.join("bin", "ninja_parse_filtered.exe"))
         bowtie2File = bowtie2File + ".exe"
     else:   # Linux
         ninjaFilterFile = os.path.join(ninjaDirectory, os.path.join("bin", "ninja_filter_linux"))
