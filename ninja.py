@@ -9,7 +9,7 @@ import shutil
 #   GLOBAL VARIABLES
 ###
 
-# Stores original console location and log file location 
+# Stores original console location and log file location
 console = None
 ninjaLog = ""
 
@@ -19,7 +19,7 @@ ninjaFilterFile = ""
 bowtie2File = ""
 ninjaParseFile = ""
 
-# Stores booleans for subprocess shell args, depending on the OS, verbose output and input fasta correction 
+# Stores booleans for subprocess shell args, depending on the OS, verbose output and input fasta correction
 shellBool = False
 verbose = True
 inputFastaCorrected = False
@@ -107,11 +107,11 @@ def check_args(args, p, check_fasta):
     if args['input'] is None:
         p.print_help()
         sys.exit('\nPlease include an input sequences file in fasta format.')
-    
+
     # Checks if input sequences fasta is correctly formatted. Writes correct one if not
     elif check_fasta:
         fileName = args['input']
-        if not check_fasta(open(fileName)):
+        if not check_fasta2(open(fileName)):
             print("ERROR: Input fasta formatted incorrectly for QIIME, e.g. sequences or title on multiple lines. Writing " + \
                   "corrected file in current working directory. File automatically moved to output folder after NINJA runs.")
             with open(fileName) as f:
@@ -127,7 +127,7 @@ def check_args(args, p, check_fasta):
 # Checks if an input fasta file is formatted correctly for QIIME. Returns boolean.
 # Looks for data or titles with multiple lines and improper characters in seqs.
 # Makes sure first line is a header. Doesn't allow spaces in seqs.
-def check_fasta(f):
+def check_fasta2(f):
     lineNumber = 1
     inData = True
     seqChars = ['A', 'T', 'G', 'C', 'N', '\n']
@@ -248,14 +248,15 @@ def ninja_filter(inputSeqsFile, filteredSeqsFile, seqsDBFile, trim, RC, denoisin
     cmd = ""
     try:
         global shellBool
-        cmd = ninjaFilterFile + ' ' + inputSeqsFile + ' ' + filteredSeqsFile + ' ' + seqsDBFile + ' ' + argTrim + \
-              ' ' + argRC + ' ' + argDenoising
+        # cmd = ninjaFilterFile + ' ' + inputSeqsFile + ' ' + filteredSeqsFile + ' ' + seqsDBFile + ' ' + argTrim + \
+            #   ' ' + argRC + ' ' + argDenoising
+        cmd = [ninjaFilterFile, inputSeqsFile, filteredSeqsFile, seqsDBFile, argTrim, argRC, argDenoising]
         print cmd
-        subprocess.check_call(cmd, shell = shellBool, stdout = sys.stdout)
+        subprocess.check_call(cmd, stdout = sys.stdout)
     except subprocess.CalledProcessError as e:
         error(e, msg = "ERROR: Filtering failed. One possible explanation is a problem with input FASTA formatting. Please rerun with '--check_fasta'. Exiting.", exit = True)
     return cmd
-    
+
 
 # Runs bowtie2. Uses two presets for ninja normal and max
 # INPUT     filteredSeqsFile:   filtered sequences output from ninja_filter
@@ -321,7 +322,7 @@ def bowtie2(filteredSeqsFile, alignmentsFile, bowtieDatabase, similarity, thread
 # AUTO      legacyTable:      OTU table in legacy format, output automatically
 #           parseLog:         a utility file containing parsed sequences, used in post-processing and output automatically
 def ninja_parse(seqsDBFile, alignmentsFile, masterDBFile, taxMapFile, otuTableFile):
-            
+
     global shellBool
     try:
         cmd = ninjaParseFile + ' ' + seqsDBFile + ' ' + alignmentsFile + ' ' + masterDBFile + ' ' + \
@@ -332,8 +333,80 @@ def ninja_parse(seqsDBFile, alignmentsFile, masterDBFile, taxMapFile, otuTableFi
     except subprocess.CalledProcessError as e:
         error(e, msg = "ERROR: Parsing failed. Exiting.", exit = True)
 
-    # TODO (Gabe): Output legacy table and regular biom file 
+    # TODO (Gabe): Output legacy table and regular biom file
     return cmd
+
+
+def get_filtered_seqs(filteredSeqsFile):
+        # Opens filtered sequences file and stores in the dict "filteredSeqs" with format {seq:ninjaID}
+        try:
+            filteredSeqs = {}
+            with open(filteredSeqsFile) as f:
+                for header, seq in read_fasta(f):
+                    filteredSeqs[seq] = header
+            return filteredSeqs
+        except IOError as e:
+            error(e, msg = "ERROR: Filtered sequences file not found. Exiting.", exit = True)
+
+def trim_seqs(filteredSeqs, inputSeqsFile, parseLog, trim, RC):
+        # 1)  Opens input seq file and iterates through it
+        # 1b) Changes seq to RC or trims it if user specified
+        # 2)  Searches for each seq of input in filtered sequences, grabs its index
+        # 3)  Searches for index in parse log
+        # 4)  If index found, appends seqID to list of OTU:seqIds
+        # 5)  If index not found, grabs header and sequence from inputSeqs
+        try:
+            # Temporary variables
+            ninjaID = ""                        # Filtered seqs -> Parse Log
+            seqID = ""                          # Parse log -> Reference Map
+            otuID = ""                          # In reference map
+            failuresOutput = []                 # Array of tuples (header, seq) written to failures file
+            mapOutput = {}                      # Dict of {OTU ID: [seqID]} written to map file
+            numberSequences = 0;                # Total number of sequences failed
+            if verbose: print("Searching for failed sequences and generating OTU map...")
+            for header, seq in read_fasta(open(inputSeqsFile)):       # Opens (large) input seq file
+                if RC:                                 # Handles RC
+                    seq = reverse_complement(seq)
+                if ((trim > 0) and (trim != -1)):      # Handles trim
+                    seq = seq[0:trim]
+                if seq in filteredSeqs:                # Checks if input seq filtered
+                    ninjaID = filteredSeqs[seq]        # Seq -> Ninja ID
+                    ninjaID = ninjaID.strip()
+                    if ninjaID in parseLog:
+                        otuID = parseLog[ninjaID]      # Ninja ID -> OTU ID
+                        if otuID not in mapOutput:           # Checks for existing OTU ID in OTU map
+                            mapOutput[otuID] = header.split(' ', 1)[0] + "\t"     # Adds new line with OTU ID and one Seq ID to OTU map
+                        else:
+                            mapOutput[otuID] += header.split(' ', 1)[0] + "\t"    # Appends seq ID to list of seq ID's for a given OTU
+                    else:
+                        failuresOutput.append((header, seq))
+                        numberSequences += 1
+
+            if verbose: print("OTU Map generated. A total of " + str(numberSequences) + " sequences were recovered.")
+            return failuresOutput, mapOutput
+        except IOError as e:
+            error(e, msg = "ERROR: Input seqs not found. Exiting.", exit = True)
+
+def write_process(failuresOutput, seqOutFile, mapOutput, mapOutFile):
+    try:
+        if verbose: print("Writing files...")
+        write_fasta(failuresOutput, seqOutFile)
+        write_map(mapOutput, mapOutFile)    # Sorts map in ascending order of OTUs
+    except IOError as e:
+        error(e, msg = "ERROR: Writing to files failed. Exiting.", exit = True)
+
+def parse_log(parseLogFile):
+    # Opens parse log file and stores in the dict "parseLog" with format {ninjaID:OTU}
+    try:
+        parseLog = {}
+        with open(parseLogFile) as f:
+            for line in f:
+                l = line.strip().split()
+                parseLog[l[0]] = l[1]
+        return parseLog
+    except IOError as e:
+        error(e, msg= "ERROR: Parse log file not found. Exiting.", exit = True)
+
 
 # Processes NINJA output. Finds all rejected seqs and outputs them to a FASTA file. Also creates an OTU map using accepted seqs.
 # INPUT     inputSeqsFile:      original file of sequences passed to ninja_filter (.fna, .fasta)
@@ -344,72 +417,11 @@ def ninja_parse(seqsDBFile, alignmentsFile, masterDBFile, taxMapFile, otuTableFi
 # OPTIONAL  trim:               matches trim of input seqs to trim specified in ninja_filter (e.g. 200 bp)
 #           RC:                 takes RC of input seqs if specified in ninja_filter
 def process(inputSeqsFile, filteredSeqsFile, parseLogFile, seqOutFile, mapOutFile, trim, RC):
+    filteredSeqs = get_filtered_seqs(filteredSeqsFile)
+    parseLog = parse_log(parseLogFile)
+    failuresOutput, mapOutput = trim_seqs(filteredSeqs, inputSeqsFile, parseLog, trim, RC)
+    write_process(failuresOutput, seqOutFile, mapOutput, mapOutFile)
 
-    # Opens filtered sequences file and stores in the dict "filteredSeqs" with format {seq:ninjaID}
-    try:
-        filteredSeqs = {}
-        with open(filteredSeqsFile) as f:
-            for header, seq in read_fasta(f):
-                filteredSeqs[seq] = header
-    except IOError as e:
-        error(e, msg = "ERROR: Filtered sequences file not found. Exiting.", exit = True)
-
-    # Opens parse log file and stores in the dict "parseLog" with format {ninjaID:OTU}
-    try:
-        parseLog = {}
-        with open(parseLogFile) as f:
-            for line in f:
-                l = line.strip().split()
-                parseLog[l[0]] = l[1]
-                
-    except IOError as e:
-        error(e, msg= "ERROR: Parse log file not found. Exiting.", exit = True)
-
-    # 1)  Opens input seq file and iterates through it
-    # 1b) Changes seq to RC or trims it if user specified
-    # 2)  Searches for each seq of input in filtered sequences, grabs its index
-    # 3)  Searches for index in parse log
-    # 4)  If index found, appends seqID to list of OTU:seqIds
-    # 5)  If index not found, grabs header and sequence from inputSeqs
-    try:
-        # Temporary variables
-        ninjaID = ""                        # Filtered seqs -> Parse Log
-        seqID = ""                          # Parse log -> Reference Map
-        otuID = ""                          # In reference map
-        failuresOutput = []                 # Array of tuples (header, seq) written to failures file
-        mapOutput = {}                      # Dict of {OTU ID: [seqID]} written to map file
-        numberSequences = 0;                # Total number of sequences failed
-        if verbose: print("Searching for failed sequences and generating OTU map...")
-        for header, seq in read_fasta(open(inputSeqsFile)):       # Opens (large) input seq file
-            if RC:                                 # Handles RC
-                seq = reverse_complement(seq)
-            if ((trim > 0) and (trim != -1)):      # Handles trim
-                seq = seq[0:trim]
-            if seq in filteredSeqs:                # Checks if input seq filtered  
-                ninjaID = filteredSeqs[seq]        # Seq -> Ninja ID
-                ninjaID = ninjaID.strip()
-                if ninjaID in parseLog:
-                    otuID = parseLog[ninjaID]      # Ninja ID -> OTU ID
-                    if otuID not in mapOutput:           # Checks for existing OTU ID in OTU map
-                        mapOutput[otuID] = header.split(' ', 1)[0] + "\t"     # Adds new line with OTU ID and one Seq ID to OTU map
-                    else:
-                        mapOutput[otuID] += header.split(' ', 1)[0] + "\t"    # Appends seq ID to list of seq ID's for a given OTU
-                else:
-                    failuresOutput.append((header, seq))
-                    numberSequences += 1
-  
-  
-        if verbose: print("OTU Map generated. A total of " + str(numberSequences) + " sequences were recovered.")
-    
-    except IOError as e:
-        error(e, msg = "ERROR: Input seqs not found. Exiting.", exit = True)
-
-    try:
-        if verbose: print("Writing files...")
-        write_fasta(failuresOutput, seqOutFile)
-        write_map(mapOutput, mapOutFile)    # Sorts map in ascending order of OTUs
-    except IOError as e:
-        error(e, msg = "ERROR: Writing to files failed. Exiting.", exit = True)
 
 # Performs housekeeping on files, deleting the intermediate ones listed below
 # INPUT     inputSeqsFile:      original file of sequences passed to ninja_filter (.fna, .fasta)
@@ -432,7 +444,7 @@ def clean(inputSeqsFile, filteredSeqsFile, seqsDBFile, alignmentsFile, parseLogF
         global inputFastaCorrected
         if inputFastaCorrected:
             global out
-            newInputSeqsFile = os.path.join(out, inputSeqsFile).replace("\\", "/") 
+            newInputSeqsFile = os.path.join(out, inputSeqsFile).replace("\\", "/")
             os.rename(inputSeqsFile, newInputSeqsFile)
 
         # Deletes ninja log if quiet enabled
@@ -441,15 +453,15 @@ def clean(inputSeqsFile, filteredSeqsFile, seqsDBFile, alignmentsFile, parseLogF
         error(e, msg = "INTERNAL ERROR: Can't find all files marked for moving and/or deletion. Check working directory and output folder.")
     if verbose: print("Done.")
 
-# Runs ninja, bowtie2 and then processes output. All files output in specified output folder. 
+# Runs ninja, bowtie2 and then processes output. All files output in specified output folder.
 # User must specify ninja's directory as an environment variable named 'NINJA_DIR'
 def main(inputSeqsFile, folder, database, trim, RC, similarity, threads,
         mode, denoising, verboseBool, print_only, stdout, full_output, retain_intermediates):
 
     # Gets ninja's directory relative to current working directory
-    ninjaDirectory = os.path.relpath(os.path.dirname(os.path.realpath(__file__)), os.getcwd()).replace("/", "\\") 
+    ninjaDirectory = os.path.relpath(os.path.dirname(os.path.realpath(__file__)), os.getcwd())
 
-    # Checks for output subdirectory of current working directory. Makes it if necessary. 
+    # Checks for output subdirectory of current working directory. Makes it if necessary.
     # Edits global output folder variable
     global out
     out = os.path.join(os.getcwd(), folder)
@@ -462,10 +474,10 @@ def main(inputSeqsFile, folder, database, trim, RC, similarity, threads,
     global console
     global ninjaLog
     console = sys.stdout
-    ninjaLog = os.path.join(out, "ninja_log.txt").replace("\\", "/") 
+    ninjaLog = os.path.join(out, "ninja_log.txt")
     if not stdout:
         sys.stdout = open(ninjaLog, 'w')
-        
+
     global shellBool
     osName = sys.platform
     shellBool= not (osName.startswith("win32") or osName.startswith("cygwin"))
@@ -477,7 +489,7 @@ def main(inputSeqsFile, folder, database, trim, RC, similarity, threads,
     try:
         subprocess.check_call(bowtie2File + " --version", shell = shellBool, stdout = sys.stdout)
     except OSError as e:
-        bowtie2File = os.path.abspath(os.path.join(ninjaDirectory, "bowtie2-align-s")).replace("\\", "/")
+        bowtie2File = os.path.abspath(os.path.join(ninjaDirectory, "bowtie2-align-s"))
         if not os.path.exists(bowtie2File):
             error(e = None, msg = "ERROR: Bowtie2 executable not found in system path or top-level NINJA package folder. Please install bowtie2 and add its accompanying executables to the system path or place bowtie2-align-s in the top-level ninja package folder (not a subfolder). " + \
                               "Check README.txt for additional instructions. Exiting.", exit = True)
@@ -487,64 +499,64 @@ def main(inputSeqsFile, folder, database, trim, RC, similarity, threads,
     global ninjaParseFile
     global verbose
     verbose = verboseBool
-    if osName.startswith("darwin") or osName.startswith("os"):			# Mac
-    	ninjaFilterFile = os.path.join(ninjaDirectory, os.path.join("bin", "./ninja_filter_mac")).replace("\\", "/") 
-    	ninjaParseFile = os.path.join(ninjaDirectory, os.path.join("bin", "./ninja_parse_filtered_mac")).replace("\\", "/")
+    if osName.startswith("darwin") or osName.startswith("os"):            # Mac
+        ninjaFilterFile = os.path.join(ninjaDirectory, os.path.join("bin", "ninja_filter_mac"))
+        ninjaParseFile = os.path.join(ninjaDirectory, os.path.join("bin", "ninja_parse_filtered_mac"))
         if full_output:
-            ninjaParseFile = os.path.join(ninjaDirectory, os.path.join("bin", "./ninja_parse_filtered_with_log_mac")).replace("\\", "/")
-    elif osName.startswith("win32") or osName.startswith("cygwin"):		# Windows and cygwin
-    	ninjaFilterFile = os.path.join(ninjaDirectory, os.path.join("bin", "ninja_filter.exe")).replace("\\", "/") 
-    	ninjaParseFile = os.path.join(ninjaDirectory, os.path.join("bin", "ninja_parse_filtered.exe")).replace("\\", "/")
+            ninjaParseFile = os.path.join(ninjaDirectory, os.path.join("bin", "ninja_parse_filtered_with_log_mac"))
+    elif osName.startswith("win32") or osName.startswith("cygwin"):        # Windows and cygwin
+        ninjaFilterFile = os.path.join(ninjaDirectory, os.path.join("bin", "ninja_filter.exe"))
+        ninjaParseFile = os.path.join(ninjaDirectory, os.path.join("bin", "ninja_parse_filtered.exe"))
         bowtie2File = bowtie2File + ".exe"
     else:   # Linux
-        ninjaFilterFile = os.path.join(ninjaDirectory, os.path.join("bin", "./ninja_filter_linux")).replace("\\", "/") 
-        ninjaParseFile = os.path.join(ninjaDirectory, os.path.join("bin", "./ninja_parse_filtered_linux")).replace("\\", "/")
+        ninjaFilterFile = os.path.join(ninjaDirectory, os.path.join("bin", "ninja_filter_linux"))
+        ninjaParseFile = os.path.join(ninjaDirectory, os.path.join("bin", "ninja_parse_filtered_linux"))
         if full_output:
-            ninjaParseFile = os.path.join(ninjaDirectory, os.path.join("bin", "./ninja_parse_filtered_with_log_linux")).replace("\\", "/")
+            ninjaParseFile = os.path.join(ninjaDirectory, os.path.join("bin", "ninja_parse_filtered_with_log_linux"))
 
 
         # Sets variables used in ninja calls. First, ninja_filter files
-    filteredSeqsFile = os.path.join(out, "filtered_sequences.fa").replace("\\", "/") 
-    seqsDBFile = os.path.join(out, "seqsDB.db").replace("\\", "/") 
+    filteredSeqsFile = os.path.join(out, "filtered_sequences.fa")
+    seqsDBFile = os.path.join(out, "seqsDB.db")
         # Bowtie2 files
-    alignmentsFile = os.path.join(out, "alignments.txt").replace("\\", "/")
+    alignmentsFile = os.path.join(out, "alignments.txt")
     databasedir = os.path.join(ninjaDirectory, 'databases', database)
-    masterDBFile = os.path.abspath(os.path.join(databasedir, database + ".db")).replace("\\", "/") 
-    bowtieDatabase = os.path.abspath(os.path.join(databasedir, database)).replace("\\", "/") 
+    masterDBFile = os.path.abspath(os.path.join(databasedir, database + ".db"))
+    bowtieDatabase = os.path.abspath(os.path.join(databasedir, database))
         # Ninja_parse files
-    taxMapFile = os.path.abspath(os.path.join(databasedir, database + ".taxonomy")).replace("\\", "/")
+    taxMapFile = os.path.abspath(os.path.join(databasedir, database + ".taxonomy"))
     if full_output:
-        parseLogFile = os.path.join(os.getcwd(), "parseLog.txt").replace("\\", "/") 
+        parseLogFile = os.path.join(os.getcwd(), "parseLog.txt")
     else:
         parseLogFile = None
-    otuTableFile = os.path.join(out, "otutable.biom").replace("\\", "/") 
+    otuTableFile = os.path.join(out, "otutable.biom")
         # Post-processing files
-    seqOutFile = os.path.join(out, "failed_sequences.fna").replace("\\", "/") 
-    mapOutFile = os.path.join(out, "otu_map.txt").replace("\\", "/") 
+    seqOutFile = os.path.join(out, "failed_sequences.fna")
+    mapOutFile = os.path.join(out, "otu_map.txt")
 
     # Runs ninja_filter, bowtie2 and ninja_parse. Processes ninja results, generating OTU map and a list of failed seqs
     print "Running Ninja filter..."
     t1 = timeit.Timer(lambda: ninja_filter(inputSeqsFile, filteredSeqsFile, seqsDBFile, trim, RC, denoising))
-    if verbose: 
+    if verbose:
         print("Ninja filter time: " + str(t1.timeit(1)))
     else:
         t1.timeit(1)
     print "Running Bowtie..."
     t2 = timeit.Timer(lambda: bowtie2(filteredSeqsFile, alignmentsFile, bowtieDatabase, similarity, threads, mode))
-    if verbose: 
+    if verbose:
         print("Bowtie time: " + str(t2.timeit(1)))
     else:
         t2.timeit(1)
     print "Running Ninja parse..."
     t3 = timeit.Timer(lambda: ninja_parse(seqsDBFile, alignmentsFile, masterDBFile, taxMapFile, otuTableFile))
-    if verbose: 
+    if verbose:
         print("Ninja parse time: " + str(t3.timeit(1)) + "\n")
     else:
         t3.timeit(1)
     if full_output:
         print "Running post-processing..."
         t4 = timeit.Timer(lambda: process(inputSeqsFile, filteredSeqsFile, parseLogFile, seqOutFile, mapOutFile, trim, RC))
-        if verbose: 
+        if verbose:
             print("Post-processing time: " + str(t4.timeit(1)))
         else:
             t4.timeit(1)
@@ -553,7 +565,7 @@ def main(inputSeqsFile, folder, database, trim, RC, similarity, threads,
 
 # Wrapper for main function, called from command line
 # Bare minimum args:
-#   -i "seqs.fna" 
+#   -i "seqs.fna"
 # Sample maximum args:
 #   -i "seqs.fna" -o "output" -r -t 200 -mo 'max' -s 98 -d 1.005 -q
 if __name__=='__main__':
@@ -561,8 +573,8 @@ if __name__=='__main__':
     # Parses command line arguments
     p = argparse.ArgumentParser(description = "NINJA OTU Picker: NINJA Is Not Just Another OTU Picker -- filter program\n" + \
                                               "Knights Lab (www.knightslab.org/ninja)\n" + \
-                                              "This program outputs an otu table and map from sequence reads in fasta format.", 
-                                add_help = True, 
+                                              "This program outputs an otu table and map from sequence reads in fasta format.",
+                                add_help = True,
                                 epilog ='NOTE: If one or more output files are empty, trying reverse complementing your input ' + \
                                         'sequences with -r')
     args = get_args(p)
@@ -570,7 +582,6 @@ if __name__=='__main__':
     check_args(args, p, args['check_fasta'])
 
     # Runs ninja pipeline
-    main(args['input'], args['output'], args['database'], args['trim'], args['reverse_complement'], args['similarity'], 
+    main(args['input'], args['output'], args['database'], args['trim'], args['reverse_complement'], args['similarity'],
                                   args['threads'], args['mode'], args['denoising'], args['quiet'], args['print_only'],
                                   args['stdout'], args['full_output'], args['retain_intermediates'])
-
