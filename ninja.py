@@ -336,6 +336,78 @@ def ninja_parse(seqsDBFile, alignmentsFile, masterDBFile, taxMapFile, otuTableFi
     # TODO (Gabe): Output legacy table and regular biom file
     return cmd
 
+
+def get_filtered_seqs(filteredSeqsFile):
+        # Opens filtered sequences file and stores in the dict "filteredSeqs" with format {seq:ninjaID}
+        try:
+            filteredSeqs = {}
+            with open(filteredSeqsFile) as f:
+                for header, seq in read_fasta(f):
+                    filteredSeqs[seq] = header
+            return filteredSeqs
+        except IOError as e:
+            error(e, msg = "ERROR: Filtered sequences file not found. Exiting.", exit = True)
+
+def trim_seqs(filteredSeqs, inputSeqsFile, parseLog, trim, RC):
+        # 1)  Opens input seq file and iterates through it
+        # 1b) Changes seq to RC or trims it if user specified
+        # 2)  Searches for each seq of input in filtered sequences, grabs its index
+        # 3)  Searches for index in parse log
+        # 4)  If index found, appends seqID to list of OTU:seqIds
+        # 5)  If index not found, grabs header and sequence from inputSeqs
+        try:
+            # Temporary variables
+            ninjaID = ""                        # Filtered seqs -> Parse Log
+            seqID = ""                          # Parse log -> Reference Map
+            otuID = ""                          # In reference map
+            failuresOutput = []                 # Array of tuples (header, seq) written to failures file
+            mapOutput = {}                      # Dict of {OTU ID: [seqID]} written to map file
+            numberSequences = 0;                # Total number of sequences failed
+            if verbose: print("Searching for failed sequences and generating OTU map...")
+            for header, seq in read_fasta(open(inputSeqsFile)):       # Opens (large) input seq file
+                if RC:                                 # Handles RC
+                    seq = reverse_complement(seq)
+                if ((trim > 0) and (trim != -1)):      # Handles trim
+                    seq = seq[0:trim]
+                if seq in filteredSeqs:                # Checks if input seq filtered
+                    ninjaID = filteredSeqs[seq]        # Seq -> Ninja ID
+                    ninjaID = ninjaID.strip()
+                    if ninjaID in parseLog:
+                        otuID = parseLog[ninjaID]      # Ninja ID -> OTU ID
+                        if otuID not in mapOutput:           # Checks for existing OTU ID in OTU map
+                            mapOutput[otuID] = header.split(' ', 1)[0] + "\t"     # Adds new line with OTU ID and one Seq ID to OTU map
+                        else:
+                            mapOutput[otuID] += header.split(' ', 1)[0] + "\t"    # Appends seq ID to list of seq ID's for a given OTU
+                    else:
+                        failuresOutput.append((header, seq))
+                        numberSequences += 1
+
+            if verbose: print("OTU Map generated. A total of " + str(numberSequences) + " sequences were recovered.")
+            return failuresOutput, mapOutput
+        except IOError as e:
+            error(e, msg = "ERROR: Input seqs not found. Exiting.", exit = True)
+
+def write_process(failuresOutput, seqOutFile, mapOutput, mapOutFile):
+    try:
+        if verbose: print("Writing files...")
+        write_fasta(failuresOutput, seqOutFile)
+        write_map(mapOutput, mapOutFile)    # Sorts map in ascending order of OTUs
+    except IOError as e:
+        error(e, msg = "ERROR: Writing to files failed. Exiting.", exit = True)
+
+def parse_log(parseLogFile):
+    # Opens parse log file and stores in the dict "parseLog" with format {ninjaID:OTU}
+    try:
+        parseLog = {}
+        with open(parseLogFile) as f:
+            for line in f:
+                l = line.strip().split()
+                parseLog[l[0]] = l[1]
+        return parseLog
+    except IOError as e:
+        error(e, msg= "ERROR: Parse log file not found. Exiting.", exit = True)
+
+
 # Processes NINJA output. Finds all rejected seqs and outputs them to a FASTA file. Also creates an OTU map using accepted seqs.
 # INPUT     inputSeqsFile:      original file of sequences passed to ninja_filter (.fna, .fasta)
 #           filteredSeqsFile:   seqs with duplicates removed output from ninja_filter
@@ -345,72 +417,11 @@ def ninja_parse(seqsDBFile, alignmentsFile, masterDBFile, taxMapFile, otuTableFi
 # OPTIONAL  trim:               matches trim of input seqs to trim specified in ninja_filter (e.g. 200 bp)
 #           RC:                 takes RC of input seqs if specified in ninja_filter
 def process(inputSeqsFile, filteredSeqsFile, parseLogFile, seqOutFile, mapOutFile, trim, RC):
+    filteredSeqs = get_filtered_seqs(filteredSeqsFile)
+    parseLog = parse_log(parseLogFile)
+    failuresOutput, mapOutput = trim_seqs(filteredSeqs, inputSeqsFile, parseLog, trim, RC)
+    write_process(failuresOutput, seqOutFile, mapOutput, mapOutFile)
 
-    # Opens filtered sequences file and stores in the dict "filteredSeqs" with format {seq:ninjaID}
-    try:
-        filteredSeqs = {}
-        with open(filteredSeqsFile) as f:
-            for header, seq in read_fasta(f):
-                filteredSeqs[seq] = header
-    except IOError as e:
-        error(e, msg = "ERROR: Filtered sequences file not found. Exiting.", exit = True)
-
-    # Opens parse log file and stores in the dict "parseLog" with format {ninjaID:OTU}
-    try:
-        parseLog = {}
-        with open(parseLogFile) as f:
-            for line in f:
-                l = line.strip().split()
-                parseLog[l[0]] = l[1]
-
-    except IOError as e:
-        error(e, msg= "ERROR: Parse log file not found. Exiting.", exit = True)
-
-    # 1)  Opens input seq file and iterates through it
-    # 1b) Changes seq to RC or trims it if user specified
-    # 2)  Searches for each seq of input in filtered sequences, grabs its index
-    # 3)  Searches for index in parse log
-    # 4)  If index found, appends seqID to list of OTU:seqIds
-    # 5)  If index not found, grabs header and sequence from inputSeqs
-    try:
-        # Temporary variables
-        ninjaID = ""                        # Filtered seqs -> Parse Log
-        seqID = ""                          # Parse log -> Reference Map
-        otuID = ""                          # In reference map
-        failuresOutput = []                 # Array of tuples (header, seq) written to failures file
-        mapOutput = {}                      # Dict of {OTU ID: [seqID]} written to map file
-        numberSequences = 0;                # Total number of sequences failed
-        if verbose: print("Searching for failed sequences and generating OTU map...")
-        for header, seq in read_fasta(open(inputSeqsFile)):       # Opens (large) input seq file
-            if RC:                                 # Handles RC
-                seq = reverse_complement(seq)
-            if ((trim > 0) and (trim != -1)):      # Handles trim
-                seq = seq[0:trim]
-            if seq in filteredSeqs:                # Checks if input seq filtered
-                ninjaID = filteredSeqs[seq]        # Seq -> Ninja ID
-                ninjaID = ninjaID.strip()
-                if ninjaID in parseLog:
-                    otuID = parseLog[ninjaID]      # Ninja ID -> OTU ID
-                    if otuID not in mapOutput:           # Checks for existing OTU ID in OTU map
-                        mapOutput[otuID] = header.split(' ', 1)[0] + "\t"     # Adds new line with OTU ID and one Seq ID to OTU map
-                    else:
-                        mapOutput[otuID] += header.split(' ', 1)[0] + "\t"    # Appends seq ID to list of seq ID's for a given OTU
-                else:
-                    failuresOutput.append((header, seq))
-                    numberSequences += 1
-
-
-        if verbose: print("OTU Map generated. A total of " + str(numberSequences) + " sequences were recovered.")
-
-    except IOError as e:
-        error(e, msg = "ERROR: Input seqs not found. Exiting.", exit = True)
-
-    try:
-        if verbose: print("Writing files...")
-        write_fasta(failuresOutput, seqOutFile)
-        write_map(mapOutput, mapOutFile)    # Sorts map in ascending order of OTUs
-    except IOError as e:
-        error(e, msg = "ERROR: Writing to files failed. Exiting.", exit = True)
 
 # Performs housekeeping on files, deleting the intermediate ones listed below
 # INPUT     inputSeqsFile:      original file of sequences passed to ninja_filter (.fna, .fasta)
