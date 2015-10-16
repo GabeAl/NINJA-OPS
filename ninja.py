@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import timeit
 import argparse
 import os
@@ -325,7 +326,7 @@ def ninja_parse(seqsDBFile, alignmentsFile, masterDBFile, taxMapFile, otuTableFi
     global shellBool
     try:
         cmd = ninjaParseFile + ' ' + seqsDBFile + ' ' + alignmentsFile + ' ' + masterDBFile + ' ' + \
-              taxMapFile + ' ' + otuTableFile + ' --legacy'
+              taxMapFile + ' ' + otuTableFile
         print cmd
         subprocess.check_call(cmd, shell = shellBool, stdout = sys.stdout)
         #if verbose: print("NINJA complete. Begin post-processing.\n")
