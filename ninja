@@ -260,7 +260,7 @@ def ninja_filter(inputSeqsFile, filteredSeqsFile, seqsDBFile, trim, RC, denoisin
 
 # Runs bowtie2. Uses two presets for ninja normal and max
 # INPUT     filteredSeqsFile:   filtered sequences output from ninja_filter
-# OUTPUT    alignmentsFile:     main output of bowtie2
+# OUTPUT    alignmentsFile:     main output of bowtie
 # OPTIONAL  mode:               'ninja' or 'ninjaMax', for less and more sensitivity, respectively
 #           threads:            number of threads/cores to run bowtie2 on
 #           similarity:         minimum percent similarity between query sequence and reference sequence
@@ -546,7 +546,7 @@ def main(inputSeqsFile, folder, database, trim, RC, similarity, threads,
         print "Running post-processing..."
         t4 = timeit.Timer(lambda: process(inputSeqsFile, filteredSeqsFile, parseLogFile, seqOutFile, mapOutFile, trim, RC))
         if verbose: 
-            print("Post-processing time: " + str(t4.timeit(1)))
+            print("ost-processing time: " + str(t4.timeit(1)))
         else:
             t4.timeit(1)
     if not retain_intermediates:
@@ -574,4 +574,3 @@ if __name__=='__main__':
     main(args['input'], args['output'], args['database'], args['trim'], args['reverse_complement'], args['similarity'], 
                                   args['threads'], args['mode'], args['denoising'], args['quiet'], args['print_only'],
                                   args['stdout'], args['full_output'], args['retain_intermediates'])
-
