@@ -70,7 +70,7 @@ def get_args(p):
                    help = "NINJA sensitivity mode: 'normal' (default), 'fast' (less sensitive), or 'max' (more sensitive, slower)")
     p.add_argument("-d", "--denoising",
                    type = str,
-                   default = "1.0001",
+                   default = "2",
                    metavar = '',
                    help = "For argument X.Y, discards all reads that appear fewer than X times and all kmers that appear" + \
                           " less than Y fraction of kmers, except if the kmer appears in reads that appear more than X times." + \
