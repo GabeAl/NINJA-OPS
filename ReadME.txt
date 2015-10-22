@@ -64,7 +64,7 @@ Sample commands are as follows:
 
 
 
-# Takes a fasta file as input (-i), reverse complements it (-r) and outputs its OTU map, OTU table and a list of sequences culled by NINJA to the folder seqs_output (-o)
+# Takes a fasta file as input (-i), reverse complements all reads within it (-r) and outputs its OTU map, OTU table and a list of sequences culled by NINJA to the folder seqs_output (-o)
 
 > python ninja.py -i seqs.fna -o seqs_output -r
 
