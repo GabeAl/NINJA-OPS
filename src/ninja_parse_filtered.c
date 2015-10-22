@@ -90,9 +90,9 @@ int cmp(const void *v1, const void *v2) {
 }
 
 // Wide binary search: uncovers range of result rather than single result
-unsigned int uWBS(unsigned *ixList, unsigned key, unsigned range) {
+unsigned long int uWBS(unsigned long *ixList, unsigned long key, unsigned long range) {
 	// wide binary search index list for correct OTU 
-	unsigned middle, low = 0, high = range;
+	unsigned long middle, low = 0, high = range;
 	while (low <= high) {
 		middle = low + ((high - low) >> 1);
 		if (key > ixList[middle]) low = middle + 1;
@@ -105,28 +105,28 @@ unsigned int uWBS(unsigned *ixList, unsigned key, unsigned range) {
 
 // Opens tax map from file handle with the given delimiter and outputs numbers to 
 // Col1 array and strings to Col2. File is closed after running.
-int parse_string_map(FILE * fp, char delim, unsigned ** Col1, char *** Col2) {
+unsigned long parse_string_map(FILE * fp, char delim, unsigned long ** Col1, char *** Col2) {
 	// treat the file to a full read-in and caching
-	fseek(fp, 0, SEEK_END); unsigned ixSize = ftell(fp); fseek(fp, 0, SEEK_SET); 
+	fseek(fp, 0, SEEK_END); unsigned long ixSize = ftell(fp); fseek(fp, 0, SEEK_SET); 
 	char *ixStr = malloc(ixSize + 1); // *ixStrp = ixStr; 
 	if (!ixStr) { puts("PSM out of memory.\n"); return 0; }
 	fread(ixStr, ixSize, 1, fp); fclose(fp);
-	unsigned ilines = 0; char *iix = ixStr - 1, iptr;
-	while (iptr = *++iix) iptr != '\n' ?: ++ilines;
+	unsigned long ilines = 0; char *iix = ixStr - 1, iptr;
+	while ((iptr = *++iix)) iptr != '\n' ?: ++ilines, (void)0;
 	
 	// Grab values in 'Col1[delim]Col2[\n]' format
-	*Col1 = malloc(ilines * sizeof(unsigned int)); 
+	*Col1 = malloc(ilines * sizeof(unsigned long)); 
 	*Col2 = malloc(ilines * sizeof(char *));
 	if (!*Col1 || !*Col2) { puts("PSM out of memory.\n"); return 0; }
-	unsigned *Col1p = *Col1; char **Col2p = *Col2;
+	unsigned long *Col1p = *Col1; char **Col2p = *Col2;
 		
 	int which = 0; // here 0 is the Col1 field and !0 is the Col2 field
 	char *buffer = malloc(1024), *bufp = buffer;
 	iix = ixStr;
-	char c; while (c=*iix++) {
+	char c; while ((c=*iix++)) {
 		if (c=='\n' || c==delim) { // commit, switch buffer pointer
 			memset(bufp,'\0',1);
-			if (!which) *Col1p++ = atoi(buffer);
+			if (!which) *Col1p++ = atol(buffer);
 			else {
 				int amt; *Col2p = malloc(amt = strlen(buffer)+1);
 				if (!*Col2p) return 0; 
@@ -142,28 +142,28 @@ int parse_string_map(FILE * fp, char delim, unsigned ** Col1, char *** Col2) {
 
 // Opens int map from file handle with the given delimiter and first col numbers to 
 // Col1 array and second column numbers to Col2. File is closed after running.
-int parse_unsigned_map(FILE * fp, char delim, unsigned ** Col1, unsigned ** Col2) {
+unsigned long parse_unsigned_map(FILE * fp, char delim, unsigned long ** Col1, unsigned long ** Col2) {
 	// treat the file to a full read-in and caching
-	fseek(fp, 0, SEEK_END); unsigned ixSize = ftell(fp); fseek(fp, 0, SEEK_SET); 
+	fseek(fp, 0, SEEK_END); unsigned long ixSize = ftell(fp); fseek(fp, 0, SEEK_SET); 
 	char *ixStr = malloc(ixSize + 1); 
 	if (!ixStr) { puts("PUM out of memory.\n"); return 0; }
 	fread(ixStr, ixSize, 1, fp); fclose(fp);
-	unsigned ilines = 0; char *iix = ixStr - sizeof(char), iptr;
-	while (iptr = *++iix) iptr != '\n' ?: ++ilines;
+	unsigned long ilines = 0; char *iix = ixStr - sizeof(char), iptr;
+	while ((iptr = *++iix)) iptr != '\n' ?: ++ilines;
 	
 	// grab values in 'Col1[delim]Col2[\n]' format
-	*Col1 = malloc(ilines * sizeof(unsigned int)); 
-	*Col2 = malloc(ilines * sizeof(unsigned int));
+	*Col1 = malloc(ilines * sizeof(unsigned long)); 
+	*Col2 = malloc(ilines * sizeof(unsigned long));
 	if (!*Col1 || !*Col2) { puts("PUM out of memory.\n"); return 0; }
-	unsigned *Col1p = *Col1, *Col2p = *Col2;
+	unsigned long *Col1p = *Col1, *Col2p = *Col2;
 		 
 	int which = 0; // here 0 is the Col1 field and !0 is the Col2 field
 	char *buffer = malloc(32), *bufp = buffer;
 	iix = ixStr;
-	char c; while (c=*iix++) {
+	char c; while ((c=*iix++)) {
 		if (c=='\n' || c==delim) { // commit, switch buffer pointer
 			memset(bufp,'\0',1);
-			which ? (*Col2p++ = atoi(buffer)) : (*Col1p++ = atoi(buffer));
+			which ? (*Col2p++ = atol(buffer)) : (*Col1p++ = atol(buffer));
 			which ^= 1; bufp = buffer; 
 		}
 		else *bufp++ = c;
@@ -174,12 +174,12 @@ int parse_unsigned_map(FILE * fp, char delim, unsigned ** Col1, unsigned ** Col2
 
 // Opens a file handle (from fopen) and outputs the string to the given address. 
 // Returns number of lines. 
-int parse_strings(FILE *fp, char *** Strings) {
-	fseek(fp, 0, SEEK_END); unsigned ixSize = ftell(fp); fseek(fp, 0, SEEK_SET); 
+unsigned long parse_strings(FILE *fp, char *** Strings) {
+	fseek(fp, 0, SEEK_END); unsigned long ixSize = ftell(fp); fseek(fp, 0, SEEK_SET); 
 	char *Dump = malloc(ixSize + 1); 
 	if (!Dump) { puts("PS out of memory.\n"); return 0; }
 	fread(Dump, ixSize, 1, fp); fclose(fp);
-	unsigned ilines = 0, curLen = 1000; 
+	unsigned long ilines = 0, curLen = 1000; 
 	*Strings = malloc(curLen * sizeof(char **));
 	char *iix = Dump - 1, *bufP, *Buffer, // = malloc(1000000), *bufP = Buffer,
 		**StrP = *Strings;
@@ -191,7 +191,7 @@ int parse_strings(FILE *fp, char *** Strings) {
 		do *Buffer++ = *bufP; while (++bufP < iix);
 		memset(Buffer,'\0',1);
 		if (++ilines == curLen) {
-			unsigned offset = StrP - *Strings;
+			unsigned long offset = StrP - *Strings;
 			*Strings = realloc(*Strings, (curLen *= 2) * sizeof(char **));
 			if (!*Strings) { printf("out of D-memory.\n"); return 1; }
 			StrP = *Strings + offset;
@@ -239,23 +239,23 @@ int main ( int argc, char *argv[] )
 		SHOW_USAGE();
 	}
 	// Parse the loaded files: sample file is "pre-parsed" in raw string form
-	unsigned *OtuList, *ixList,
+	unsigned long *OtuList, *ixList,
 		ilines = parse_unsigned_map(ifi, ',', &ixList, &OtuList);
 	char **OtuMap_taxa, **SampDBdump; 
-	unsigned *OtuMap_otus, blines = doTaxmap ? 
+	unsigned long *OtuMap_otus, blines = doTaxmap ? 
 		parse_string_map(itx, '\t', &OtuMap_otus, &OtuMap_taxa) : 0;
-	printf("Total OTUs available: %u\n", ilines);
+	printf("Total OTUs available: %lu\n", ilines);
 	
 	// Parse samples from pre-parsed sample file
-	unsigned slines = parse_strings(mfp, &SampDBdump);
+	unsigned long slines = parse_strings(mfp, &SampDBdump);
 	if (!ilines || (doTaxmap && !blines) || !slines) 
-		{ printf("Unparsable: ilines %u, blines %u, slines %u.\n",ilines, blines, slines); return 1; }
+		{ printf("Unparsable: ilines %lu, blines %lu, slines %lu.\n",ilines, blines, slines); return 1; }
 #ifdef PROFILE
 	printf("->Time for list parse: %f\n", ((double) (clock() - start)) / CLOCKS_PER_SEC); start = clock();
 #endif
-	unsigned numSamps = atoi(*SampDBdump++), numReads = slines - numSamps - 1; // max reads possible
+	unsigned long numSamps = atol(*SampDBdump++), numReads = slines - numSamps - 1; // max reads possible
 	char **Seq2samp = SampDBdump + numSamps;
-	printf("Number of unique samples: %u, max reads: %u\n", numSamps, numReads);
+	printf("Number of unique samples: %lu, max reads: %lu\n", numSamps, numReads);
 	
 	// Processes SAM file generated from bowtie
 	fseek(ifp, 0, SEEK_END); size_t fsize = ftell(ifp); fseek(ifp, 0, SEEK_SET); 
@@ -271,52 +271,62 @@ int main ( int argc, char *argv[] )
 	printf("->Time for read-in: %f\n", ((double) (clock() - start)) / CLOCKS_PER_SEC); start = clock();
 #endif
 	// Create OTU table counts matrix
-	unsigned *OtuTable = calloc(numSamps * ilines, sizeof (unsigned)), otuIX;
+	unsigned long *OtuTable = calloc(numSamps * ilines, sizeof (unsigned long)), otuIX;
 	if (!OtuTable) {printf("couldn't allocate OTU table.\n"); return 1;}
-	unsigned tabs, rix, six, cnt, alignPos, totalReadsCnt = 0;
+	unsigned long tabs, rix, six, cnt, alignPos, totalReadsCnt = 0;
 	char *cix = string - 1, *startS, *curSamp; 
 // Lots each match and duplication count to a separate, fixed filename in the directory
 #ifdef LOGMATCHES
 	FILE *log = fopen("parseLog.txt", "wb");
 	FILE *log2 = fopen("map_seqid_reps.txt", "wb");
 #endif
-	unsigned lcounter = 0;
+	unsigned long lcounter = 0;
 	while (*++cix) { // != '\t' && *cix != '\n') { // work through the sample string
 		//printf("cix (starting)=%u (%c) ",cix,*cix);
 		++lcounter;
 		startS = cix;
 		// lookahead to the read map region
 		tabs = 0; do {
-			if (!*cix) goto endGame; // workaround for mac assembler's race condition
+			if (!*cix) goto endGame; // workaround for mac compiler race condition
 			if (*++cix == '\t') ++tabs; 
 		} while (tabs < 3);
-		alignPos = atoi(cix);
-		rix = atoi(startS);
+		alignPos = atol(cix);
+		rix = atol(startS);
 		curSamp = *(Seq2samp + rix); // look up rix
 		
 		//fprintf(ofp,"Read %u, Align Pos: %u, Sample String: %s\n", rix, alignPos, curSamp);
 		otuIX = uWBS(ixList, alignPos, ilines); //*(OtuList + otuIX) is actual otu
+		
+		// slays chimeras
+		do if (*++cix == '\t') ++tabs; while (tabs < 9); // proper SAM format required!
+		char *beginSeq = cix + 1;
+		while (*++cix != '\t');
+		if (otuIX < ilines && ((cix-beginSeq) > (*(ixList+otuIX+1) - alignPos))) { 
+			while (*++cix != '\n')
+			; continue; 
+		}
+
 #ifdef LOGMATCHES
-		fprintf(log,"%u\t%u\t%s\n", rix, OtuList[otuIX],!doTaxmap ? "" : *(OtuMap_taxa + uWBS(OtuMap_otus, *(OtuList + otuIX), blines))); //deleteme
+		fprintf(log,"%lu\t%lu\t%s\n", rix, OtuList[otuIX],!doTaxmap ? "" : *(OtuMap_taxa + uWBS(OtuMap_otus, *(OtuList + otuIX), blines))); //deleteme
 #endif
-		unsigned amt = 0;
+		unsigned long amt = 0;
 		//fprintf(ofp,"-- This read maps to otu %u, (%s)\n", OtuList[otuIX], OtuMap_taxa[uWBS(OtuMap_otus,OtuList[otuIX],blines)]); //*(OtuList + otu));
 		//printf("rix=%u, curSamp=%u, alignPos=%u,cix=%u\n",rix,curSamp,alignPos,cix);
 		do { //startS new scope
 			//++amt;
 			startS = curSamp;
 			while (*++curSamp != ':');
-			six = atoi(startS);
+			six = atol(startS);
 			startS = ++curSamp; // + 1;
 			while (*++curSamp != ':');
-			cnt = atoi(startS);
+			cnt = atol(startS);
 			amt += cnt;
 			//fprintf(ofp,"-- Found %u copies in sample id %u (%s).\n", cnt, six, SampDBdump[six] );
 			*(OtuTable + otuIX * numSamps + six) += cnt;
 			totalReadsCnt += cnt;
 		} while (*++curSamp);
 #ifdef LOGMATCHES
-		fprintf(log2, "%u\t%u\n", rix, amt); 
+		fprintf(log2, "%lu\t%lu\n", rix, amt); 
 #endif
 		while (*++cix != '\n');
 	}
@@ -324,16 +334,16 @@ endGame:
 #ifdef PROFILE
 	printf("->Time for matrix generation: %f\n", ((double) (clock() - start)) / CLOCKS_PER_SEC); start = clock();
 #endif
-	printf("Total reads expanded: %d\n", totalReadsCnt);
+	printf("Total reads expanded: %lu\n", totalReadsCnt);
 	// Legacy table format output handler
 	if (legacy) {
 		// Prints sample and taxonomy header
 		fprintf(ofp, "#OTU ID");
 		char **SampP = SampDBdump - 1;
-		unsigned *OtuP = OtuList - 1;
+		unsigned long *OtuP = OtuList - 1;
 		cnt = numSamps; do fprintf(ofp,"\t%s",*++SampP); while (--cnt);
 		if (doTaxmap) fprintf(ofp,"\ttaxonomy");
-		unsigned i, *row, *rowP;
+		unsigned long i, *row, *rowP;
 		// Print taxonomy values
 		for (i = 0; i < ilines; i++) {
 			// Screens if any numbers in this row
@@ -341,16 +351,16 @@ endGame:
 			cnt = numSamps; do if (*rowP++) break; while (--cnt);
 			++OtuP;
 			if (cnt) {
-				fprintf(ofp, "\n%u", *OtuP);
+				fprintf(ofp, "\n%lu", *OtuP);
 				rowP = row; cnt = numSamps; 
-				do fprintf(ofp, "\t%u", *rowP++); while (--cnt);
+				do fprintf(ofp, "\t%lu", *rowP++); while (--cnt);
 				if (doTaxmap) 
 					fprintf(ofp,"\t%s", 
 						*(OtuMap_taxa + uWBS(OtuMap_otus, *(OtuList + i), blines)));
 				}
 			}
 		}
-		// BIOM format output handler
+		// BIOM 1.0 (sparse) format output handler
 		else { 
 			time_t t = time(NULL);
 			struct tm tm = *localtime(&t);
@@ -363,15 +373,16 @@ endGame:
 			
 			// Write the rows in the biom format
 			fprintf(ofp, "\"rows\":[");
-			unsigned *OtuP = OtuList - 1;
+			unsigned long *OtuP = OtuList - 1;
 			int ix = ilines; do { // display the "row" lines
-				fprintf(ofp,"\n\t{\"id\":\"%u\", \"metadata\":",*++OtuP);
+				fprintf(ofp,"\n\t{\"id\":\"%lu\", \"metadata\":",*++OtuP);
 				if (doTaxmap) {
 					fprintf(ofp,"{\"taxonomy\":[");
 					char *taxon = *(OtuMap_taxa + uWBS(OtuMap_otus, *OtuP, blines)) - 2, *tP;
 					int i; for (i = 0; i < 6; i++) { // there are 6 ;'s to consider for 7 taxa
 						tP = taxon + 2;
-						while (*++taxon != ';'); *taxon = '\0';
+						while (*++taxon != ';')
+							; *taxon = '\0';
 						fprintf(ofp, "\"%s\", ", tP);
 						*taxon = ';';
 					}
@@ -394,14 +405,14 @@ endGame:
 			
 			// Write structure, data
 			fprintf(ofp,"\"matrix_type\": \"sparse\",\n\"matrix_element_type\": \"int\",\n"
-				"\"shape\": [%u, %u],\n", ilines, numSamps);
+				"\"shape\": [%lu, %lu],\n", ilines, numSamps);
 			fprintf(ofp,"\"data\":[");
 			// loop thru all points
-			unsigned i, j; // *row, *rowP;
+			unsigned long i, j; // *row, *rowP;
 			//*OtuP = OtuList - 1;
 			for (i = 0; i < ilines; i++) for (j = 0; j < numSamps; j++) {
 				if (OtuTable[i * numSamps + j]) 
-					fprintf(ofp, "[%u,%u,%u],\n\t", i, j, OtuTable[i * numSamps + j]);
+					fprintf(ofp, "[%lu,%lu,%lu],\n\t", i, j, OtuTable[i * numSamps + j]);
 			}
 			fseek(ofp, -3, SEEK_CUR);
 			fprintf(ofp,"]\n}");
