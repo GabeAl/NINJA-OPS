@@ -22,19 +22,20 @@
 #include <stdlib.h>
 #include <time.h>
 #define ARRSZ 16
-#define NINJA_VER "1.0"
+#define NINJA_VER "1.1"
 #define SHOW_USAGE() {\
-	printf( "\nNINJA Is Not Just Another OTU Picking Software " NINJA_VER ": Parser. Usage:\n");\
-	printf( "ninja_parse in_filt.db in_aligns.txt in_NINJA.map [in_taxa.txt] out_otutable[.biom] [--legacy]\n" );\
+	printf( "\nNINJA Is Not Just Another - OTU Picking Solution v" NINJA_VER ": Parser. Usage:\n");\
+	printf( "ninja_parse in_PREFIX in_aligns.sam in_NINJA.map [in_taxa.txt] [--legacy] [LOG]\n" );\
 	printf("\nINPUT PARAMETERS:\n");\
-	printf( "in_filt.db: the DB file produced by ninja_filter\n"); \
+	printf( "in_PREFIX: use the same prefix as with ninja_filter.\n"); \
 	printf( "in_aligns: the bowtie2 (headerless, match-only) short read alignment\n");\
 	printf( "in_NINJA.map: the (included) sequence index -> OTU database\n");\
 	printf( "in_taxa.txt (optional): the (included) sorted OTU -> taxonomy table\n");\
-	printf( "\n" "OUTPUT PARAMETERS:\n");\
-	printf( "out_otutable: name of the otu table to create (BIOM format)\n");\
+	printf( "\n" "OUTPUT PARAMETERS:\n"); \
 	printf( "--legacy: optional, create legacy tab-delimited OTU table (txt).\n");\
-	return 1; \
+	printf( "LOG: optional, outputs failures. ninja_filter with LOG is required.\n"); \
+	printf( "Note: OTU table will be output as PREFIX.biom\n"); \
+	exit(1); \
 }
 
 /** 
@@ -198,6 +199,7 @@ unsigned long parse_strings(FILE *fp, char *** Strings) {
 		}
 	}
 	*Strings = realloc(*Strings, ilines * sizeof( char **));
+	free(Dump);
 	return ilines;
 }
 
@@ -205,13 +207,10 @@ unsigned long parse_strings(FILE *fp, char *** Strings) {
 
 /** 
  *  Main parsing algorithm.
- *  INPUT     seqsDBFile:       db file output from ninja_filter
+ *  INPUT     prefix:           db file output from ninja_filter
  *            alignmentsFile:   alignment file output from bowtie2
  *            masterDBFile:     master db file packaged with ninja
- *            taxMapFile:       reference taxonomy map packaged with ninja
- *  OUTPUT    otuTableFile:     OTU table output that's really the point of all this
- *  AUTO      legacyTable:      OTU table in legacy format, output automatically
- *            parseLog:         a utility file containing parsed sequences, used in post-processing and output automatically
+ *            taxMapFile:       reference taxonomy map packaged with NINJA-OPS
  **/
 int main ( int argc, char *argv[] )
 {
@@ -219,21 +218,52 @@ int main ( int argc, char *argv[] )
 	clock_t start;
 	start = clock();
 	// Checks supported number of args specified
-	if ( argc < 5 || argc > 7 ) SHOW_USAGE();
-    int argx = argc, legacy = 0;
+	if ( argc < 4 || argc > 7 ) SHOW_USAGE();
+    int legacy = 0, doLog = 0;
+	if (!strcmp(argv[argc-1],"LOG")) {
+		printf("Logging enabled.\n");
+		doLog = 1;
+		--argc;
+	}
 	if (!strcmp(argv[argc-1],"--legacy")) {
 		printf("Legacy output mode toggled.\n");
 		legacy = 1;
-		--argx;
+		--argc;
 	}
 	// Controls whether taxonomy will be considered
-    int doTaxmap = (argx == 6) ?: 0;
+    int doTaxmap = (argc == 5) ?: 0;
 	// Assumes argv[n] are filenames to open, in the order specified.
-	FILE *mfp = fopen( argv[1], "rb" );
+	char *prefixStr = argv[1];
+	char *db_sx = ".db", *dp_sx = "_dupes.txt", 
+		 *tab_sx = legacy? "_otu.txt" : ".biom",
+		 *lf_sx = "_fail.txt", *lp_sx = "_pass.log";
+	char *inputDB = calloc(1,1+strlen(prefixStr)+strlen(db_sx)),
+		 *inputDP = calloc(1,1+strlen(prefixStr)+strlen(dp_sx)),
+		 *outTable= calloc(1,1+strlen(prefixStr)+strlen(tab_sx)),
+		 *outLogF = calloc(1,1+strlen(prefixStr)+strlen(lf_sx)),
+		 *outLogP = calloc(1,1+strlen(prefixStr)+strlen(lp_sx));
+	strcpy(inputDB,prefixStr); strcpy(inputDB+strlen(prefixStr),db_sx);
+	strcpy(inputDP,prefixStr); strcpy(inputDP+strlen(prefixStr),dp_sx);
+	strcpy(outTable,prefixStr); strcpy(outTable+strlen(prefixStr),tab_sx);
+	strcpy(outLogF,prefixStr); strcpy(outLogF+strlen(prefixStr),lf_sx);
+	strcpy(outLogP,prefixStr); strcpy(outLogP+strlen(prefixStr),lp_sx);
+	
+	FILE *mfp = fopen( inputDB, "rb" );
 	FILE *ifp = fopen( argv[2], "rb" ), *ifi = fopen( argv[3], "rb"), 
-		 *ofp = fopen( argv[doTaxmap ? 5 : 4], "wb"), *itx = 0;
+		 *ofp = fopen( outTable, "wb"), 
+		 *itx = 0, *logFail = 0, *logPass = 0, *inDupes = 0;
 	if (doTaxmap) itx = fopen( argv[4], "rb"); // otu-tax map provided
-	printf("Opened %s for OTU Table writing\n", doTaxmap ? argv[5] : argv[4]);
+	printf("Opened %s for OTU Table writing\n", outTable);
+	if (doLog) {
+		logFail = fopen(outLogF, "wb");
+		inDupes = fopen(inputDP,"rb");
+		//logPass = fopen(outLogP, "wb");
+		if (!logFail || !inDupes) { // || !logPass) 
+			puts("Couldn't create output logs."); 
+			puts("LOG is also required during filter with same prefix.");
+			exit(2); 
+		}
+	}
 	if ( !mfp || !ifp || !ifi || !ofp || (doTaxmap && itx == 0)) {
 		fprintf(stderr, "Could not open one or more files.\n");
 		SHOW_USAGE();
@@ -241,13 +271,23 @@ int main ( int argc, char *argv[] )
 	// Parse the loaded files: sample file is "pre-parsed" in raw string form
 	unsigned long *OtuList, *ixList,
 		ilines = parse_unsigned_map(ifi, ',', &ixList, &OtuList);
-	char **OtuMap_taxa, **SampDBdump; 
+	char **OtuMap_taxa, **SampDBdump, **AllSamps; 
 	unsigned long *OtuMap_otus, blines = doTaxmap ? 
 		parse_string_map(itx, '\t', &OtuMap_otus, &OtuMap_taxa) : 0;
 	printf("Total OTUs available: %lu\n", ilines);
 	
 	// Parse samples from pre-parsed sample file
 	unsigned long slines = parse_strings(mfp, &SampDBdump);
+	unsigned long flines = 0;
+	if (doLog) {
+		//printf("Trying to read inDupes: %s\n",inputDP);
+		flines = parse_strings(inDupes, &AllSamps);
+		unsigned long z = 0; for (; z < flines; ++z) {
+			char *entry = AllSamps[z] - 1;
+			while (*++entry) if (*entry == '\t') *entry = '\n';
+		}
+	}
+	//for (int i = 0; i < flines; ++i) fprintf(logFail,"%s",AllSamps[i]);
 	if (!ilines || (doTaxmap && !blines) || !slines) 
 		{ printf("Unparsable: ilines %lu, blines %lu, slines %lu.\n",ilines, blines, slines); return 1; }
 #ifdef PROFILE
@@ -259,6 +299,7 @@ int main ( int argc, char *argv[] )
 	
 	// Processes SAM file generated from bowtie
 	fseek(ifp, 0, SEEK_END); size_t fsize = ftell(ifp); fseek(ifp, 0, SEEK_SET); 
+	//size_t sz = lseek(fileno(fp), 0, SEEK_END); rewind(fp);
 	char *string = malloc(fsize + 1); // Allocates a block of memory (direct bytes)
 	if (string == NULL) {
 		fprintf(stderr, "Insufficient memory for caching input file.\n");
@@ -280,21 +321,26 @@ int main ( int argc, char *argv[] )
 	FILE *log = fopen("parseLog.txt", "wb");
 	FILE *log2 = fopen("map_seqid_reps.txt", "wb");
 #endif
-	unsigned long lcounter = 0;
+	//unsigned long lcounter = 0;
 	while (*++cix) { // != '\t' && *cix != '\n') { // work through the sample string
-		//printf("cix (starting)=%u (%c) ",cix,*cix);
-		++lcounter;
+		//++lcounter;
 		startS = cix;
 		// lookahead to the read map region
 		tabs = 0; do {
 			if (!*cix) goto endGame; // workaround for mac compiler race condition
 			if (*++cix == '\t') ++tabs; 
-		} while (tabs < 3);
+		} while (tabs < 2);
+		if (*++cix == '*') {
+			if (doLog) fprintf(logFail,"%s",AllSamps[atol(startS)]);
+			while (*++cix != '\n')
+			; continue; // skip to next
+		}
+		do if (*++cix == '\t') ++tabs; while (tabs < 3); // one more tab
+		
 		alignPos = atol(cix);
 		rix = atol(startS);
 		curSamp = *(Seq2samp + rix); // look up rix
 		
-		//fprintf(ofp,"Read %u, Align Pos: %u, Sample String: %s\n", rix, alignPos, curSamp);
 		otuIX = uWBS(ixList, alignPos, ilines); //*(OtuList + otuIX) is actual otu
 		
 		// slays chimeras
@@ -302,6 +348,7 @@ int main ( int argc, char *argv[] )
 		char *beginSeq = cix + 1;
 		while (*++cix != '\t');
 		if (otuIX < ilines && ((cix-beginSeq) > (*(ixList+otuIX+1) - alignPos))) { 
+			if (doLog) fprintf(logFail,"%s",AllSamps[rix]);
 			while (*++cix != '\n')
 			; continue; 
 		}
@@ -369,8 +416,7 @@ endGame:
 			"\"type\": \"OTU table\",\n\"generated_by\": \"NINJA " NINJA_VER "\",\n"
 			"\"date\": \"%d-%d-%dT%d:%d:%d\",\n", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, 
 			tm.tm_hour, tm.tm_min, tm.tm_sec);
-			//struct x = {id:x, yp:y};
-			
+
 			// Write the rows in the biom format
 			fprintf(ofp, "\"rows\":[");
 			unsigned long *OtuP = OtuList - 1;
@@ -418,21 +464,10 @@ endGame:
 			fprintf(ofp,"]\n}");
 		}
 		
-
 #ifdef PROFILE
 	printf("->Time for filtering and table write: %f\n", ((double) (clock() - start)) / CLOCKS_PER_SEC); start = clock();
 #endif
 	
-/*	
-#ifdef DEBUG
-		// Check that the read actually mapped
-		if (!ycmp(startS, "*")) { 
-			printf("FATAL: Line %lu doesn't map to NINJAdb!\n", count); 
-			return 1; 
-		}
-#endif
-*/	
-
 	printf("Run complete.\n"); 
 	return 0;
 }
