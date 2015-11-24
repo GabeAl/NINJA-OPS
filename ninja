@@ -231,7 +231,7 @@ def error(e, msg = "", exit = False):
 #           RC:                     takes reverse complement of input sequences
 #           denoising:              for argument x.y, discards all reads that appear less than x times and all kmers that
 #                                   appear less than y times unless kmers in reads that appear more than x times
-def ninja_filter(inputSeqsFile, filteredSeqsFile, seqsDBFile, trim, RC, denoising):
+def ninja_filter(inputSeqsFile, file_prefix, trim, RC, denoising, full_output=False):
 
     # TODO: Add global flag to return commands run from each function. (supress execution)
 
@@ -249,8 +249,14 @@ def ninja_filter(inputSeqsFile, filteredSeqsFile, seqsDBFile, trim, RC, denoisin
     cmd = ""
     try:
         global shellBool
-        cmd = ninjaFilterFile + ' ' + inputSeqsFile + ' ' + filteredSeqsFile + ' ' + seqsDBFile + ' ' + argTrim + \
-              ' ' + argRC + ' ' + argDenoising
+        cmd = ninjaFilterFile
+        cmd += ' ' + inputSeqsFile
+        cmd += ' ' + file_prefix
+        cmd += ' ' + argTrim
+        cmd += ' ' + argRC
+        cmd += ' ' + argDenoising
+        if full_output:
+          cmd += ' LOG'       
         print cmd
         subprocess.check_call(cmd, shell = shellBool, stdout = sys.stdout)
     except subprocess.CalledProcessError as e:
@@ -281,7 +287,7 @@ def bowtie2(filteredSeqsFile, alignmentsFile, bowtieDatabase, similarity, thread
     if mode == 'normal':
         #if verbose: print("\nRunning normal bowtie2 to create alignment...\n")
         try:
-            cmd = bowtie2File + ' --no-head --no-unal -x ' + bowtieDatabase +  ' -S ' + alignmentsFile + \
+            cmd = bowtie2File + ' --no-head -x ' + bowtieDatabase +  ' -S ' + alignmentsFile + \
                 ' --np 0 --mp "1,1" --rdg "0,1" --rfg "0,1" --score-min "L,0,-' + str(similarity) + \
                 '" -k 1 --norc -f ' + filteredSeqsFile + ' -p ' + str(threads)
             print cmd
@@ -292,7 +298,7 @@ def bowtie2(filteredSeqsFile, alignmentsFile, bowtieDatabase, similarity, thread
     elif mode == 'fast':
         #if verbose: print("\nRunning fast bowtie2 to create alignment...\n")
         try:
-            cmd = bowtie2File + ' --no-head --no-unal -x ' + bowtieDatabase + ' -S ' + alignmentsFile + \
+            cmd = bowtie2File + ' --no-head -x ' + bowtieDatabase + ' -S ' + alignmentsFile + \
                 ' --np 0 --mp "1,1" --rdg "0,1" --rfg "0,1" --score-min "L,0,-' + str(similarity) + \
                 '" -k 1 --norc -f ' + filteredSeqsFile + ' -p ' + str(threads) + ' --fast'
             print cmd
@@ -303,7 +309,7 @@ def bowtie2(filteredSeqsFile, alignmentsFile, bowtieDatabase, similarity, thread
     else:
         #if verbose: print("\nRunning very sensitive bowtie2 to create alignment...\n")
         try:
-            cmd = bowtie2File + ' --no-head --no-unal -x ' + bowtieDatabase + ' -S ' + alignmentsFile + \
+            cmd = bowtie2File + ' --no-head -x ' + bowtieDatabase + ' -S ' + alignmentsFile + \
                 ' --np 0 --mp "1,1" --rdg "0,1" --rfg "0,1" --score-min "L,0,-' + str(similarity) + \
                 '" --norc -f ' + filteredSeqsFile + ' -p ' + str(threads) + \
                 ' --very-sensitive'
@@ -321,12 +327,17 @@ def bowtie2(filteredSeqsFile, alignmentsFile, bowtieDatabase, similarity, thread
 # OUTPUT    otuTableFile:     OTU table output that's really the point of all this
 # AUTO      legacyTable:      OTU table in legacy format, output automatically
 #           parseLog:         a utility file containing parsed sequences, used in post-processing and output automatically
-def ninja_parse(seqsDBFile, alignmentsFile, masterDBFile, taxMapFile, otuTableFile):
+def ninja_parse(file_prefix, alignmentsFile, masterDBFile, taxMapFile, full_output, legacyTable=False):
             
     global shellBool
     try:
-        cmd = ninjaParseFile + ' ' + seqsDBFile + ' ' + alignmentsFile + ' ' + masterDBFile + ' ' + \
-              taxMapFile + ' ' + otuTableFile
+        cmd = ninjaParseFile
+        cmd += ' ' + file_prefix
+        cmd += ' ' + alignmentsFile
+        cmd += ' ' + masterDBFile
+        cmd += ' ' + taxMapFile
+        if full_output:
+          cmd += ' LOG' 
         print cmd
         subprocess.check_call(cmd, shell = shellBool, stdout = sys.stdout)
         #if verbose: print("NINJA complete. Begin post-processing.\n")
@@ -418,13 +429,15 @@ def process(inputSeqsFile, filteredSeqsFile, parseLogFile, seqOutFile, mapOutFil
 #           seqsDBFile:         db file output from ninja_filter
 #           alignmentsFile:     main output of bowtie2
 #           parseLogFile:       parse log generated from ninja_parse_filter
-def clean(inputSeqsFile, filteredSeqsFile, seqsDBFile, alignmentsFile, parseLogFile):
+def clean(inputSeqsFile, filteredSeqsFile, seqsDBFile, alignmentsFile, dupes_file=None, parseLogFile=None):
     if verbose: print("Cleaning up output...")
     try:
         global out
         os.remove(filteredSeqsFile)
         os.remove(seqsDBFile)
         os.remove(alignmentsFile)
+        if dupes_file is not None:
+          os.remove(dupes_file)
         if parseLogFile is not None:
             os.remove(parseLogFile)
             os.remove("map_seqid_reps.txt")
@@ -491,22 +504,17 @@ def main(inputSeqsFile, folder, database, trim, RC, similarity, threads,
     if osName.startswith("darwin") or osName.startswith("os"):			# Mac
     	ninjaFilterFile = os.path.join(ninjaDirectory, os.path.join("bin", "./ninja_filter_mac")).replace("\\", "/") 
     	ninjaParseFile = os.path.join(ninjaDirectory, os.path.join("bin", "./ninja_parse_filtered_mac")).replace("\\", "/")
-        if full_output:
-            ninjaParseFile = os.path.join(ninjaDirectory, os.path.join("bin", "./ninja_parse_filtered_with_log_mac")).replace("\\", "/")
     elif osName.startswith("win32") or osName.startswith("cygwin"):		# Windows and cygwin
-    	ninjaFilterFile = os.path.join(ninjaDirectory, os.path.join("bin", "ninja_filter.exe")).replace("\\", "/") 
-    	ninjaParseFile = os.path.join(ninjaDirectory, os.path.join("bin", "ninja_parse_filtered.exe")).replace("\\", "/")
-        bowtie2File = bowtie2File + ".exe"
+      ninjaFilterFile = os.path.join(ninjaDirectory, os.path.join("bin", "ninja_filter.exe")).replace("\\", "/") 
+      ninjaParseFile = os.path.join(ninjaDirectory, os.path.join("bin", "ninja_parse_filtered.exe")).replace("\\", "/")
+      bowtie2File = bowtie2File + ".exe"
     else:   # Linux
         ninjaFilterFile = os.path.join(ninjaDirectory, os.path.join("bin", "./ninja_filter_linux")).replace("\\", "/") 
         ninjaParseFile = os.path.join(ninjaDirectory, os.path.join("bin", "./ninja_parse_filtered_linux")).replace("\\", "/")
-        if full_output:
-            ninjaParseFile = os.path.join(ninjaDirectory, os.path.join("bin", "./ninja_parse_filtered_with_log_linux")).replace("\\", "/")
-
 
         # Sets variables used in ninja calls. First, ninja_filter files
-    filteredSeqsFile = os.path.join(out, "filtered_sequences.fa").replace("\\", "/") 
-    seqsDBFile = os.path.join(out, "seqsDB.db").replace("\\", "/") 
+    file_prefix = os.path.join(out, "ninja").replace("\\", "/")
+
         # Bowtie2 files
     alignmentsFile = os.path.join(out, "alignments.txt").replace("\\", "/")
     databasedir = os.path.join(ninjaDirectory, 'databases', database)
@@ -525,32 +533,35 @@ def main(inputSeqsFile, folder, database, trim, RC, similarity, threads,
 
     # Runs ninja_filter, bowtie2 and ninja_parse. Processes ninja results, generating OTU map and a list of failed seqs
     print "Running Ninja filter..."
-    t1 = timeit.Timer(lambda: ninja_filter(inputSeqsFile, filteredSeqsFile, seqsDBFile, trim, RC, denoising))
+    t1 = timeit.Timer(lambda: ninja_filter(inputSeqsFile, file_prefix, trim, RC, denoising, full_output))
     if verbose: 
         print("Ninja filter time: " + str(t1.timeit(1)))
     else:
         t1.timeit(1)
     print "Running Bowtie..."
-    t2 = timeit.Timer(lambda: bowtie2(filteredSeqsFile, alignmentsFile, bowtieDatabase, similarity, threads, mode))
+    t2 = timeit.Timer(lambda: bowtie2(file_prefix + "_filt.fa", alignmentsFile, bowtieDatabase, similarity, threads, mode))
     if verbose: 
         print("Bowtie time: " + str(t2.timeit(1)))
     else:
         t2.timeit(1)
     print "Running Ninja parse..."
-    t3 = timeit.Timer(lambda: ninja_parse(seqsDBFile, alignmentsFile, masterDBFile, taxMapFile, otuTableFile))
+    t3 = timeit.Timer(lambda: ninja_parse(file_prefix, alignmentsFile, masterDBFile, taxMapFile, full_output))
     if verbose: 
         print("Ninja parse time: " + str(t3.timeit(1)) + "\n")
     else:
         t3.timeit(1)
-    if full_output:
-        print "Running post-processing..."
-        t4 = timeit.Timer(lambda: process(inputSeqsFile, filteredSeqsFile, parseLogFile, seqOutFile, mapOutFile, trim, RC))
-        if verbose: 
-            print("ost-processing time: " + str(t4.timeit(1)))
-        else:
-            t4.timeit(1)
+    # if full_output:
+    #     print "Running post-processing..."
+    #     t4 = timeit.Timer(lambda: process(inputSeqsFile, filteredSeqsFile, parseLogFile, seqOutFile, mapOutFile, trim, RC))
+    #     if verbose: 
+    #         print("Post-processing time: " + str(t4.timeit(1)))
+    #     else:
+    #         t4.timeit(1)
     if not retain_intermediates:
-        clean(inputSeqsFile, filteredSeqsFile, seqsDBFile, alignmentsFile, parseLogFile)
+        if full_output:
+          clean(inputSeqsFile, file_prefix + "_filt.fa", file_prefix + ".db", alignmentsFile, file_prefix + "_dupes.txt")
+        else:
+          clean(inputSeqsFile, file_prefix + "_filt.fa", file_prefix + ".db", alignmentsFile)
 
 # Wrapper for main function, called from command line
 # Bare minimum args:
