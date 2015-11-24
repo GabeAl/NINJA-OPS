@@ -868,7 +868,7 @@ int main( int argc, char *argv[] ) {
 		printf("max int size=%u/%u\n",sizeof(unsigned),sizeof(uint64_t));
 		printf("Size of SortBlock2=%u\n",sizeof(SortBlock2));
 	#endif
-	if ( argc < 3 || argc > 8 ) PRINT_USAGE();
+	if ( argc < 3 || argc > 9 ) PRINT_USAGE();
 	char *inputFilename = argv[1], *prefixStr = argv[2];
 	char *fasta_sx = "_filt.fa", *db_sx = ".db", *dp_sx = "_dupes.txt",
 		 *filt_sx = "_filtered.txt";
