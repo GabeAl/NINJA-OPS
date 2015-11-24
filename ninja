@@ -334,10 +334,10 @@ def ninja_parse(file_prefix, alignmentsFile, masterDBFile, taxMapFile, full_outp
     global shellBool
     try:
         cmd = [ninjaParseFile, file_prefix, alignmentsFile, masterDBFile, taxMapFile]
-        if full_output:
-          cmd.append('LOG')
         if legacy_table:
           cmd.append('--legacy')
+        if full_output:
+          cmd.append('LOG')
         cmd = ' '.join(cmd)
         print cmd
         subprocess.check_call(cmd, shell = shellBool, stdout = sys.stdout)

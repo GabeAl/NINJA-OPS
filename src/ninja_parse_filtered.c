@@ -235,7 +235,7 @@ int main ( int argc, char *argv[] )
 	// Assumes argv[n] are filenames to open, in the order specified.
 	char *prefixStr = argv[1];
 	char *db_sx = ".db", *dp_sx = "_dupes.txt", 
-		 *tab_sx = legacy? "_otu.txt" : ".biom",
+		 *tab_sx = legacy? "_otutable.txt" : "_otutable.biom",
 		 *lf_sx = "_fail.txt", *lp_sx = "_pass.log";
 	char *inputDB = calloc(1,1+strlen(prefixStr)+strlen(db_sx)),
 		 *inputDP = calloc(1,1+strlen(prefixStr)+strlen(dp_sx)),
