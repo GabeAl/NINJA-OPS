@@ -69,13 +69,13 @@ def get_args(p):
                    help = "NINJA sensitivity mode: 'normal' (default), 'fast' (less sensitive), or 'max' (more sensitive, slower)")
     p.add_argument("-d", "--denoising",
                    type = str,
-                   default = "2",
+                   default = "2.0",
                    metavar = '',
                    help = "For argument X.Y, discards all reads that appear fewer than X times and all kmers that appear" + \
                           " less than Y fraction of kmers, except if the kmer appears in reads that appear more than X times." + \
                           " Suggested values: No denoising = 0.0; Light denoising = 1.0001 (throws out reads seen only once" + \
                           " that have rare kmers; Moderate denoising = 2.0001 (throws out all singletons and all doubletons with rare kmers);" + \
-                          " Aggressive denoising = 6.0 (nearly guaranteed to eliminate all sequencing error - although not PCR error - in most data sets) (default 1.0001)")
+                          " Aggressive denoising = 6.0 (nearly guaranteed to eliminate all sequencing error - although not PCR error - in most data sets) (default 2.0)")
     p.add_argument("-F", "--full_output",
                    action = 'store_true',
                    help = "Output fasta files containing failed sequences and filtered sequences [default False]")
@@ -114,7 +114,7 @@ def check_args(args, p, check_fasta):
     # Checks if input sequences fasta is correctly formatted. Writes correct one if not
     elif check_fasta:
         fileName = args['input']
-        if not check_fasta(open(fileName)):
+        if not check_fasta_f(open(fileName)):
             print("ERROR: Input fasta formatted incorrectly for QIIME, e.g. sequences or title on multiple lines. Writing " + \
                   "corrected file in current working directory. File automatically moved to output folder after NINJA runs.")
             with open(fileName) as f:
@@ -130,7 +130,7 @@ def check_args(args, p, check_fasta):
 # Checks if an input fasta file is formatted correctly for QIIME. Returns boolean.
 # Looks for data or titles with multiple lines and improper characters in seqs.
 # Makes sure first line is a header. Doesn't allow spaces in seqs.
-def check_fasta(f):
+def check_fasta_f(f):
     lineNumber = 1
     inData = True
     seqChars = ['A', 'T', 'G', 'C', 'N', '\n']
