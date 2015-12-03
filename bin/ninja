@@ -451,7 +451,7 @@ def clean(inputSeqsFile, filteredSeqsFile, seqsDBFile, alignmentsFile, dupes_fil
         global inputFastaCorrected
         if inputFastaCorrected:
             global out
-            newInputSeqsFile = os.path.join(out, inputSeqsFile).replace("\\", "/") 
+            newInputSeqsFile = os.path.join(out, inputSeqsFile)
             os.rename(inputSeqsFile, newInputSeqsFile)
 
         # Deletes ninja log if quiet enabled
@@ -483,7 +483,8 @@ def main(argparser):
     # Runs ninja pipeline
 
     # Gets ninja's directory relative to current working directory
-    ninjaDirectory = os.path.relpath(os.path.dirname(os.path.realpath(__file__)), os.getcwd()).replace("/", "\\") 
+    ninjaDirectory = os.path.abspath(os.path.dirname(os.path.realpath(__file__)))
+    ninjaDirectory = os.path.abspath(os.path.join(ninjaDirectory, os.pardir))
 
     # Checks for output subdirectory of current working directory. Makes it if necessary. 
     # Edits global output folder variable
@@ -498,7 +499,7 @@ def main(argparser):
     global console
     global ninjaLog
     console = sys.stdout
-    ninjaLog = os.path.join(out, "ninja_log.txt").replace("\\", "/") 
+    ninjaLog = os.path.join(out, "ninja_log.txt")
     if stdout:
         sys.stdout = open(ninjaLog, 'w')
         
@@ -513,7 +514,7 @@ def main(argparser):
     try:
         subprocess.check_call(bowtie2File + " --version", shell = shellBool, stdout = sys.stdout)
     except OSError as e:
-        bowtie2File = os.path.abspath(os.path.join(ninjaDirectory, "bowtie2-align-s")).replace("\\", "/")
+        bowtie2File = os.path.abspath(os.path.join(ninjaDirectory, "bowtie2-align-s"))
         if not os.path.exists(bowtie2File):
             error(e = None, msg = "ERROR: Bowtie2 executable not found in system path or top-level NINJA package folder. Please install bowtie2 and add its accompanying executables to the system path or place bowtie2-align-s in the top-level ninja package folder (not a subfolder). " + \
                               "Check README.txt for additional instructions. Exiting.", exit = True)
@@ -524,34 +525,35 @@ def main(argparser):
     global verbose
     verbose = verboseBool
     if osName.startswith("darwin") or osName.startswith("os"):			# Mac
-    	ninjaFilterFile = os.path.join(ninjaDirectory, os.path.join("bin", "./ninja_filter_mac")).replace("\\", "/") 
-    	ninjaParseFile = os.path.join(ninjaDirectory, os.path.join("bin", "./ninja_parse_filtered_mac")).replace("\\", "/")
+    	ninjaFilterFile = os.path.join(ninjaDirectory, os.path.join("bin", "ninja_filter_mac"))
+    	ninjaParseFile = os.path.join(ninjaDirectory, os.path.join("bin", "ninja_parse_filtered_mac"))
     elif osName.startswith("win32") or osName.startswith("cygwin"):		# Windows and cygwin
-      ninjaFilterFile = os.path.join(ninjaDirectory, os.path.join("bin", "ninja_filter.exe")).replace("\\", "/") 
-      ninjaParseFile = os.path.join(ninjaDirectory, os.path.join("bin", "ninja_parse_filtered.exe")).replace("\\", "/")
+      ninjaFilterFile = os.path.join(ninjaDirectory, os.path.join("bin", "ninja_filter.exe"))
+      ninjaParseFile = os.path.join(ninjaDirectory, os.path.join("bin", "ninja_parse_filtered.exe"))
       bowtie2File = bowtie2File + ".exe"
     else:   # Linux
-        ninjaFilterFile = os.path.join(ninjaDirectory, os.path.join("bin", "./ninja_filter_linux")).replace("\\", "/") 
-        ninjaParseFile = os.path.join(ninjaDirectory, os.path.join("bin", "./ninja_parse_filtered_linux")).replace("\\", "/")
+        ninjaFilterFile = os.path.join(ninjaDirectory, os.path.join("bin", "ninja_filter_linux"))
+        ninjaParseFile = os.path.join(ninjaDirectory, os.path.join("bin", "ninja_parse_filtered_linux"))
 
         # Sets variables used in ninja calls. First, ninja_filter files
-    file_prefix = os.path.join(out, "ninja").replace("\\", "/")
+    file_prefix = os.path.join(out, "ninja")
 
         # Bowtie2 files
-    alignmentsFile = os.path.join(out, "alignments.txt").replace("\\", "/")
+    alignmentsFile = os.path.join(out, "alignments.txt")
     databasedir = os.path.join(ninjaDirectory, 'databases', args['database'])
-    masterDBFile = os.path.abspath(os.path.join(databasedir, args['database'] + ".db")).replace("\\", "/") 
-    bowtieDatabase = os.path.abspath(os.path.join(databasedir, args['database'])).replace("\\", "/") 
+    print 'dbdir is',databasedir
+    masterDBFile = os.path.abspath(os.path.join(databasedir, args['database'] + ".db"))
+    bowtieDatabase = os.path.abspath(os.path.join(databasedir, args['database']))
         # Ninja_parse files
-    taxMapFile = os.path.abspath(os.path.join(databasedir, args['database'] + ".taxonomy")).replace("\\", "/")
+    taxMapFile = os.path.abspath(os.path.join(databasedir, args['database'] + ".taxonomy"))
     if full_output:
-        parseLogFile = os.path.join(os.getcwd(), "parseLog.txt").replace("\\", "/") 
+        parseLogFile = os.path.join(os.getcwd(), "parseLog.txt")
     else:
         parseLogFile = None
-    otuTableFile = os.path.join(out, "otutable.biom").replace("\\", "/") 
+    otuTableFile = os.path.join(out, "otutable.biom")
         # Post-processing files
-    seqOutFile = os.path.join(out, "failed_sequences.fna").replace("\\", "/") 
-    mapOutFile = os.path.join(out, "otu_map.txt").replace("\\", "/") 
+    seqOutFile = os.path.join(out, "failed_sequences.fna")
+    mapOutFile = os.path.join(out, "otu_map.txt")
 
     # Runs ninja_filter, bowtie2 and ninja_parse. Processes ninja results, generating OTU map and a list of failed seqs
     print "Running Ninja filter..."
