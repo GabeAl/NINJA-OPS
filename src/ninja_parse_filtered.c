@@ -22,7 +22,7 @@
 #include <stdlib.h>
 #include <time.h>
 #define ARRSZ 16
-#define NINJA_VER "1.1"
+#define NINJA_VER "1.2"
 #define SHOW_USAGE() {\
 	printf( "\nNINJA Is Not Just Another - OTU Picking Solution v" NINJA_VER ": Parser. Usage:\n");\
 	printf( "ninja_parse in_PREFIX in_aligns.sam in_NINJA.map [in_taxa.txt] [--legacy] [LOG]\n" );\
