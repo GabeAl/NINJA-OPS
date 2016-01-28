@@ -243,9 +243,9 @@ def ninja_filter(inputSeqsFile, file_prefix, trim, RC, denoising, logger, full_o
     argDenoising = 'D ' + str(denoising)
     # Runs ninja_filter. Run in shell only on Mac
     cmd = ""
-    cmd = ninjaFilterFile
-    cmd += ' ' + inputSeqsFile
-    cmd += ' ' + file_prefix
+    cmd = '"' + ninjaFilterFile + '"'
+    cmd += ' ' + '"' + inputSeqsFile + '"'
+    cmd += ' ' + '"' + file_prefix + '"'
     cmd += ' ' + argTrim
     cmd += ' ' + argRC
     cmd += ' ' + argDenoising
@@ -285,14 +285,14 @@ def bowtie2(filteredSeqsFile, alignmentsFile, bowtieDatabase, similarity, thread
 
     cmd = ['bowtie2-align-s','--no-head']
     cmd.append('-x ' + bowtieDatabase)
-    cmd.append('-S ' + alignmentsFile)
+    cmd.append('-S ' + '"' + alignmentsFile + '"')
     cmd.append('--np 0')
     cmd.append('--mp "1,1"')
     cmd.append('--rdg "0,1"')
     cmd.append('--rfg "0,1"')
     cmd.append('--score-min "L,0,-' + str(similarity) + '"')
     cmd.append('--norc')
-    cmd.append('-f ' + filteredSeqsFile)
+    cmd.append('-f ' + '"'+ filteredSeqsFile + '"')
     cmd.append('-p ' + str(threads))
     cmd.append('-k 1')
 
@@ -333,7 +333,7 @@ def ninja_parse(file_prefix, alignmentsFile, masterDBFile, taxMapFile, full_outp
   else:   # Linux
       ninjaParseFile = os.path.join(ninjaDirectory, os.path.join("bin", "ninja_parse_filtered_linux"))
             
-  cmd = [ninjaParseFile, file_prefix, alignmentsFile, masterDBFile, taxMapFile]
+  cmd = ['"' + ninjaParseFile + '"', '"' + file_prefix + '"', '"' + alignmentsFile + '"', '"' + masterDBFile + '"' , '"' + taxMapFile + '"' ]
   if legacy_table:
     cmd.append('--legacy')
   if full_output:
