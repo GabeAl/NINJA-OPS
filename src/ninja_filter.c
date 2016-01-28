@@ -6,7 +6,7 @@
 #ifdef _OPENMP
 #include <omp.h>
 #endif
-#define NINJA_VER "1.1"
+#define NINJA_VER "1.2"
 #define PRINT_USAGE() \
 {\
 	printf( "\nNINJA Is Not Just Another - OTU Picking Solution v" NINJA_VER ": Filter. Usage:\n");\
