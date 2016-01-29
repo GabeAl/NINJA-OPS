@@ -880,6 +880,21 @@ size_t findRarestK(KMerX *tree, WTYPE *seq, uint16_t length) {
 	return min;
 }
 
+size_t findRarestK_PE(KMerX *tree, WTYPE *seq, uint16_t length, uint16_t length2) {
+	size_t numPacks = (length - length2)/PACKSIZE, min = (size_t)-1, cur;
+	int ditch = numPacks * PACKSIZE < (length - length2);
+	int i = 0; for (; i < numPacks; ++i) {
+		cur = giTree(tree,seq[i]);
+		if (cur < min) min = cur;
+	}
+	numPacks = length/PACKSIZE;
+	i += ditch; for (; i < numPacks; ++i) {
+		cur = giTree(tree,seq[i]);
+		if (cur < min) min = cur;
+	}
+	return min;
+}
+
 inline size_t findRarestK2(KMerX *tree, WTYPE *seq, uint16_t length) {
 	size_t min = giTree(tree,*seq), cur;
 	unsigned offset = 0, basePack = 1;
@@ -1322,7 +1337,8 @@ int main( int argc, char *argv[] ) {
 #endif
 	#define WRITE_SUPPORTED_DUPE() {\
 		if (copies >= copyNumThres || (copies >= i_copyThres && \
-			findRarestK(master, ReadsX[prevIX], Sizes[prevIX]) >= filt_n)) { \
+			(read2Str ? findRarestK_PE(master,ReadsX[prevIX], Sizes[prevIX],Sizes2[prevIX]) : \
+			findRarestK(master, ReadsX[prevIX], Sizes[prevIX])) >= filt_n)) { \
 			/* printf("\nfound rarest K=%llu\n",findRarestK2(master, ReadsX[prevIX], Sizes[prevIX])); */ \
 			if (doLog) { \
 				/* while (++lastLogged <= k) */ \
