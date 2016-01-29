@@ -51,7 +51,7 @@ def get_args(p):
                    type = str,
                    default = None,
                    metavar = '',
-                   help="Input sequences originally passed to ninja_filter [required].")
+                   help="Input fasta file (use \"input1.fna,input2.fna\" for paired-end) [required].")
     p.add_argument("-o", "--output",
                    type = str,
                    default = '.',
@@ -67,11 +67,21 @@ def get_args(p):
                    default = -1,
                    metavar = '',
                    help = "Trim sequences to a specified number of bp, cutting off from their ends (default no trim)")
+    p.add_argument("-T", "--trim2",
+                   type = int,
+                   default = -1,
+                   metavar = '',
+                   help = "Trim reverse paired-end reads to a different length than forward reads. If trim2 is specified, trim must be too. (default no trim)")
     p.add_argument("-s", "--similarity",
                    type = float,
                    default = 0.97,
                    metavar = '',
                    help = "Minimum percent similarity - id - between query sequence and reference sequence (default 97%%)")
+    p.add_argument("-I", "--insert",
+                   type = int,
+                   default = 1600,
+                   metavar = '',
+                   help = "Maximum total length for paired-end matches. Set this as small as possible (e.g. 400 for 515F-806R primers) (default 1600, for 16S)")
     p.add_argument("-p", "--threads",
                    type = int,
                    default = 4,
@@ -119,6 +129,8 @@ def check_args(args, p):
     if args['input'] is None:
         p.print_help()
         sys.exit('\nPlease include an input sequences file in fasta format.')
+    if args['trim'] == -1 and args['trim2'] != -1:
+        sys.exit('\nIf trim2 is specified you must also specify trim1 (set to large number for no trimming).')
     
 
 # Checks if an input fasta file is formatted correctly for QIIME. Returns boolean.
@@ -212,13 +224,14 @@ def complement(seq):
 
 # Runs ninja_filter
 # INPUT     inputSeqsFile:          input sequences in fasta format
+#           inputSeqsFile2:         paired-end input sequences in fasta format
 # OUTPUT    filteredSeqsFile:       input sequences filtered using ninja algorithm
 #           seqsDB:                 utility file used in ninja_parse
 # OPTIONAL  trim:                   trims sequences to <= uniform X bp (e.g. AGGC, GCG with trim 2 returns AG, GC)
 #           RC:                     takes reverse complement of input sequences
 #           denoising:              for argument x.y, discards all reads that appear less than x times and all kmers that
 #                                   appear less than y times unless kmers in reads that appear more than x times
-def ninja_filter(inputSeqsFile, file_prefix, trim, RC, denoising, logger, full_output=False,
+def ninja_filter(inputSeqsFile, inputSeqsFile2, file_prefix, trim, trim2, RC, denoising, logger, full_output=False,
                 run_with_shell=True, print_only=False):
 
     # Converts optional arguments to args readable by ninja_filter
@@ -227,6 +240,9 @@ def ninja_filter(inputSeqsFile, file_prefix, trim, RC, denoising, logger, full_o
     argDenoising = ''
     if trim != -1:
         argTrim = str(trim)
+    if trim2 != -1:
+        argTrim += "," + str(trim2)
+        argTrim = '"' + argTrim + '"'
     if RC:
         argRC = "RC"
 
@@ -234,23 +250,26 @@ def ninja_filter(inputSeqsFile, file_prefix, trim, RC, denoising, logger, full_o
     ninjaDirectory = os.path.abspath(os.path.dirname(os.path.realpath(__file__)))
     ninjaDirectory = os.path.abspath(os.path.join(ninjaDirectory, os.pardir))
     if sys.platform.startswith("darwin") or sys.platform.startswith("os"):      # Mac
-      ninjaFilterFile = os.path.join(ninjaDirectory, os.path.join("bin", "ninja_filter_mac"))
+      ninjaFilterFile = os.path.join(ninjaDirectory, os.path.join("bin", "ninja_filter_mac_beta"))
     elif sys.platform.startswith("win32") or sys.platform.startswith("cygwin"):   # Windows and cygwin
       ninjaFilterFile = os.path.join(ninjaDirectory, os.path.join("bin", "ninja_filter.exe"))
     else:   # Linux
         ninjaFilterFile = os.path.join(ninjaDirectory, os.path.join("bin", "ninja_filter_linux"))
 
     argDenoising = 'D ' + str(denoising)
+
     # Runs ninja_filter. Run in shell only on Mac
     cmd = ""
     cmd = '"' + ninjaFilterFile + '"'
     cmd += ' ' + '"' + inputSeqsFile + '"'
+    if inputSeqsFile2 is not None:
+      cmd += ' ' + 'PE "' + inputSeqsFile2 + '"'
     cmd += ' ' + '"' + file_prefix + '"'
     cmd += ' ' + argTrim
     cmd += ' ' + argRC
     cmd += ' ' + argDenoising
     if full_output:
-      cmd += ' LOG'       
+      cmd += ' LOG'     
     logger.log(cmd)
 
     if not print_only:
@@ -269,7 +288,7 @@ def ninja_filter(inputSeqsFile, file_prefix, trim, RC, denoising, logger, full_o
 # OPTIONAL  mode:               'ninja' or 'ninjaMax', for less and more sensitivity, respectively
 #           threads:            number of threads/cores to run bowtie2 on
 #           similarity:         minimum percent similarity between query sequence and reference sequence
-def bowtie2(filteredSeqsFile, alignmentsFile, bowtieDatabase, similarity, threads, mode,
+def bowtie2(filteredSeqsFile, filteredSeqsFile2, alignmentsFile, bowtieDatabase, similarity, insert, threads, mode,
             logger, run_with_shell=True, print_only=False):
 
     # TODO: Automatically convert fasta file if formatted incorrectly
@@ -292,7 +311,13 @@ def bowtie2(filteredSeqsFile, alignmentsFile, bowtieDatabase, similarity, thread
     cmd.append('--rfg "0,1"')
     cmd.append('--score-min "L,0,-' + str(similarity) + '"')
     cmd.append('--norc')
-    cmd.append('-f ' + '"'+ filteredSeqsFile + '"')
+    if filteredSeqsFile2 is None:
+      cmd.append('-f ' + '"'+ filteredSeqsFile + '"')
+    else:
+      cmd.append('-f -1 ' + '"'+ filteredSeqsFile + '"')
+      cmd.append('-2 ' + '"'+ filteredSeqsFile2 + '"')
+      cmd.append('--maxins ' + str(insert))
+      cmd.append('--no-mixed --no-discordant')
     cmd.append('-p ' + str(threads))
     cmd.append('-k 1')
 
@@ -353,12 +378,15 @@ def ninja_parse(file_prefix, alignmentsFile, masterDBFile, taxMapFile, full_outp
 # Performs housekeeping on files, deleting the intermediate ones listed below
 # INPUT     inputSeqsFile:      original file of sequences passed to ninja_filter (.fna, .fasta)
 #           filteredSeqsFile:   seqs with duplicates removed output from ninja_filter
+#           filteredSeqsFile2:  paired-end reverse reads, or None
 #           seqsDBFile:         db file output from ninja_filter
 #           alignmentsFile:     main output of bowtie2
 #           parseLogFile:       parse log generated from ninja_parse_filter
-def clean(inputSeqsFile, filteredSeqsFile, seqsDBFile, alignmentsFile, dupes_file=None, parseLogFile=None):
+def clean(inputSeqsFile, filteredSeqsFile, filteredSeqsFile2, seqsDBFile, alignmentsFile, dupes_file=None, parseLogFile=None):
     try:
         os.remove(filteredSeqsFile)
+        if filteredSeqsFile2 is not None:
+          os.remove(filteredSeqsFile2)
         os.remove(seqsDBFile)
         os.remove(alignmentsFile)
         if dupes_file is not None:
@@ -385,6 +413,14 @@ def main(argparser):
 
     check_args(args, argparser)
 
+    # if paired end, store second file as a different parameter
+    if("," in args['input']):
+        files = args['input'].split(',')
+        args['input'] = files[0]
+        args['input2'] = files[1]
+    else:
+        args['input2'] = None
+
     # Checks if input sequences fasta is correctly formatted. Writes correct one if not
     if args['check_fasta']:
         fileName = args['input']
@@ -395,6 +431,15 @@ def main(argparser):
             with open(fileName) as f:
                 write_fasta(read_fasta(f), new_input_fasta)
                 args['input'] = new_input_fasta
+        if args['input2'] is not None:
+          fileName = args['input2']
+          if not check_fasta(open(fileName), logger):
+              new_input_fasta = os.path.join(args['output'], "formatted_input2_fasta.fna")
+              logger.log("Warning: Reverse input fasta formatted incorrectly for QIIME, e.g. sequences or title on multiple lines. Writing " + \
+                    "corrected file to " + new_input_fasta)
+              with open(fileName) as f:
+                  write_fasta(read_fasta(f), new_input_fasta)
+                  args['input2'] = new_input_fasta
 
     RC = args['reverse_complement']
     similarity = args['similarity']
@@ -423,13 +468,24 @@ def main(argparser):
     run_with_shell = not (sys.platform.startswith("win32") or sys.platform.startswith("cygwin"))
 
     try:
-      subprocess.check_call("bowtie2-align-s --version", shell=run_with_shell, stdout = sys.stdout)
+      bowtie2_cmd = "bowtie2-align-s"
+      subprocess.check_call(bowtie2_cmd + " --version", shell=run_with_shell, stdout = sys.stdout)
     except OSError as e:
-      error(e = None, msg = "ERROR: Bowtie2 executable not found in system path or top-level NINJA package folder. Please install bowtie2 and add its accompanying executables to the system path or place bowtie2-align-s in the top-level ninja package folder (not a subfolder). " + \
+      try:
+        bowtie2_cmd = os.path.join(ninjaDirectory,"bowtie2-align-s")
+        subprocess.check_call(bowtie2_cmd + " --version", shell=run_with_shell, stdout = sys.stdout)
+      except OSError as e:
+        error(e = None, msg = "ERROR: Bowtie2 executable not found in system path or top-level NINJA package folder. Please install bowtie2 and add its accompanying executables to the system path or place bowtie2-align-s in the top-level ninja package folder (not a subfolder). " + \
                             "Check README.txt for additional instructions. Exiting.", exit = True)
 
     # Sets variables used in ninja calls. First, ninja_filter files
     file_prefix = os.path.join(outdir, "ninja")
+
+    # Set paired-end file to None if this is not a paired-end run
+    if(args['input2']) is not None:
+      pe_file = file_prefix + "2_filt.fa"
+    else:
+      pe_file = None 
 
     # Bowtie2 files
     alignmentsFile = os.path.join(outdir, "alignments.txt")
@@ -448,13 +504,13 @@ def main(argparser):
     # Runs ninja_filter, bowtie2 and ninja_parse. Processes ninja results, generating OTU map and a list of failed seqs
     logger.log("Running Ninja filter...")
     t1 = timeit.Timer(lambda:
-      ninja_filter(args['input'], file_prefix, args['trim'], RC, denoising, logger, full_output,
+      ninja_filter(args['input'], args['input2'], file_prefix, args['trim'], args['trim2'], RC, denoising, logger, full_output,
         run_with_shell=run_with_shell, print_only=args['print_only'])
     )
     logger.log("Ninja filter time: " + str(t1.timeit(1)))
     logger.log("Running Bowtie...")
     t2 = timeit.Timer(lambda:
-      bowtie2(file_prefix + "_filt.fa", alignmentsFile, bowtieDatabase, similarity, threads, mode,
+      bowtie2(file_prefix + "_filt.fa", pe_file, alignmentsFile, bowtieDatabase, similarity, args['insert'], threads, mode,
         logger, run_with_shell=run_with_shell, print_only=args['print_only'])
     )
     logger.log("Bowtie time: " + str(t2.timeit(1)))
@@ -466,7 +522,7 @@ def main(argparser):
     logger.log("Ninja parse time: " + str(t3.timeit(1)) + "\n")
 
     if not retain_intermediates:
-      clean(args['input'], file_prefix + "_filt.fa", file_prefix + ".db", alignmentsFile)
+      clean(args['input'], file_prefix + "_filt.fa", pe_file, file_prefix + ".db", alignmentsFile)
 
 # Wrapper for main function, called from command line
 # Bare minimum args:
