@@ -6,20 +6,24 @@
 #ifdef _OPENMP
 #include <omp.h>
 #endif
-#define NINJA_VER "1.2"
+#define NINJA_VER "1.3"
 #define PRINT_USAGE() \
 {\
 	printf( "\nNINJA Is Not Just Another - OTU Picking Solution v" NINJA_VER ": Filter. Usage:\n");\
-	printf( "ninja_filter in_reads.fna out_PREFIX [<trim>] [RC] [D [x[.y]]] [LOG]\n" );\
+	printf( "ninja_filter in_reads.fna [PE in_reads2.fa] out_PREFIX [<trim>] [RC] \n" \
+		"[D [x[.y]]] [CN] [LOG] [ST]\n" ); \
 	printf("\nINPUT PARAMETERS:\n");\
 	printf( "in_reads.fa: the reads you wish to process\n");\
+	printf("[PE in_reads2.fa] (optional): paired-end; include pairs in in_reds2.fa\n"); \
 	printf( "\n" "OUTPUT PARAMETERS:\n");\
 	printf( "out_PREFIX: prefix for all output files produced\n");\
-	printf( "<trim> (optional, numeric): specify the number of bases to keep\n");\
-	printf( "[RC] (optional): if \"RC\" is specified, reverse-complement seqs\n");\
+	printf( "<trim[,trim2]> (optional): the number of bases to keep (comma for R2)\n");\
+	printf( "[RC] (optional): Reverse-complement input sequences\n");\
 	printf( "[D] <x.y> (optional): Denoise [duplicates x, kmer duplicates/100 y]\n");\
 	printf( "Note: using .y discards reads with k-mers < y*1000 duplicates.\n");\
-	printf( "LOG: optional, outputs failures.\n"); \
+	printf( "[CN] (optional): Convert ambigous bases to A's instead of discarding them\n"); \
+	printf( "[LOG] (optional): Outputs which sequences were filtered out\n"); \
+	printf( "[ST] (optional): Run k-mer filter with a single thread\n"); \
 	return 2;\
 }
 
@@ -51,7 +55,6 @@
 //#define SEQPACKS LINELEN/PACKSIZE
 //#define RSHFT (PACKSIZE*2)-2
 char WORDTEMP[PACKSIZE+1] = {0};
-
 
 typedef struct 
 #if PACKSIZE<64
@@ -99,6 +102,7 @@ void SB2_qsort(SortBlock2 *arr, unsigned n) {
 #endif
 
 WTYPE *C2Xb;
+char *ACCEPTED;
 char *X2C = "ACGTNNNNNNNNNNNNNNNN";
 char *X2C_RC = "TGCANNNNNNNNNNNNNNNN";
 
@@ -329,6 +333,77 @@ int depth, size_t beginRange, size_t endRange) {
 		}
 	}
 	CASCADE_MERGE(); // end cap
+}
+
+void superSort2PE(uint32_t *SeqIX, WTYPE **base, WTYPE **base2, uint16_t *Lengths, 
+uint16_t *Lengths2, int depth, size_t beginRange, size_t endRange) {
+	size_t n = endRange - beginRange; // endRange is one after last index
+	SortBlock2 *BinPtrs = malloc(n * sizeof(SortBlock2)); 
+	if (!BinPtrs) {puts("Error-MemoryBinPtrs"); return;}
+	size_t depthSize = (depth+1) * PACKSIZE;
+	int d; WTYPE **b; uint16_t *l;
+	size_t i = beginRange; for (; i < endRange; ++i) {
+		//int fullLength = Lengths[SeqIX[i]] + Lengths2[SeqIX[i]];
+		size_t ts = SeqIX[i];
+		int firstBase = Lengths[ts]/PACKSIZE;
+		if (PACKSIZE * firstBase < Lengths[ts]) ++firstBase;
+		if (depth < firstBase) b = base, d = depth, l = Lengths;
+		else b = base2, d = depth-firstBase, l = Lengths2;
+		BinPtrs[i-beginRange] = (SortBlock2){b[ts][d],ts,l[ts]};
+			//Lengths[SeqIX[i]] <= depthSize ? Lengths[SeqIX[i]] : 0};
+	}
+	#ifdef USE_QSORT
+		SB2_qsort(BinPtrs,n);
+	#else
+		qsort(BinPtrs, n, sizeof(*BinPtrs), SB2Cmp);
+	#endif
+	for (i=beginRange; i < endRange; ++i) 
+		SeqIX[i] = BinPtrs[i-beginRange].ix; 
+	free(BinPtrs);
+	
+	#define CASCADE_MERGE_PE() \
+	if (i != lastUniq + 1) { \
+		/* Merge swapping indices for truncated pairs */ \
+		size_t z = lastUniq; for (; z < i; ++z) { \
+			int fb_cm = Lengths[SeqIX[z]]/PACKSIZE; \
+			if (PACKSIZE * fb_cm < Lengths[SeqIX[z]]) ++fb_cm; \
+			uint16_t *l_cm; \
+			if (depth < fb_cm) l_cm = Lengths; else l_cm = Lengths2; \
+			if (l_cm[SeqIX[z]] <= depthSize) { \
+				 if (z > lastUniq) { \
+					/* swap this ix with the ix at lastUniq++ */ \
+					uint32_t temp = SeqIX[z]; \
+					SeqIX[z] = SeqIX[lastUniq]; \
+					SeqIX[lastUniq] = temp; \
+				}  \
+				++lastUniq; \
+			} \
+		} \
+		/* Spawn a new sort on the remainder */ \
+		if (lastUniq < i-1) \
+			superSort2PE(SeqIX, base, base2, Lengths, Lengths2, \
+				depth+1, lastUniq, i); \
+	}
+	
+	// Check for duplicates; for each set, move truncations to top
+	int firstBase = Lengths[SeqIX[beginRange]]/PACKSIZE;
+	if (PACKSIZE * firstBase < Lengths[SeqIX[beginRange]]) ++firstBase;
+	if (depth < firstBase) b = base, d = depth, l = Lengths;
+	else b = base2, d = depth-firstBase, l = Lengths2;
+	WTYPE curElem = b[SeqIX[beginRange]][d]; 
+	size_t lastUniq = beginRange;
+	for (i=beginRange + 1; i < endRange; ++i) {
+		int firstBase = Lengths[SeqIX[i]]/PACKSIZE;
+		if (PACKSIZE * firstBase < Lengths[SeqIX[i]]) ++firstBase;
+		if (depth < firstBase) b = base, d = depth, l = Lengths;
+		else b = base2, d = depth-firstBase, l = Lengths2;
+		if (b[SeqIX[i]][d] != curElem) {
+			CASCADE_MERGE_PE();
+			curElem = b[SeqIX[i]][d];
+			lastUniq = i;
+		}
+	}
+	CASCADE_MERGE_PE(); // end cap
 }
 
 void isv(KMer *array, size_t sz) {
@@ -805,6 +880,21 @@ size_t findRarestK(KMerX *tree, WTYPE *seq, uint16_t length) {
 	return min;
 }
 
+size_t findRarestK_PE(KMerX *tree, WTYPE *seq, uint16_t length, uint16_t length2) {
+	size_t numPacks = (length - length2)/PACKSIZE, min = (size_t)-1, cur;
+	int ditch = numPacks * PACKSIZE < (length - length2);
+	int i = 0; for (; i < numPacks; ++i) {
+		cur = giTree(tree,seq[i]);
+		if (cur < min) min = cur;
+	}
+	numPacks = length/PACKSIZE;
+	i += ditch; for (; i < numPacks; ++i) {
+		cur = giTree(tree,seq[i]);
+		if (cur < min) min = cur;
+	}
+	return min;
+}
+
 inline size_t findRarestK2(KMerX *tree, WTYPE *seq, uint16_t length) {
 	size_t min = giTree(tree,*seq), cur;
 	unsigned offset = 0, basePack = 1;
@@ -868,37 +958,48 @@ int main( int argc, char *argv[] ) {
 		printf("max int size=%u/%u\n",sizeof(unsigned),sizeof(uint64_t));
 		printf("Size of SortBlock2=%u\n",sizeof(SortBlock2));
 	#endif
-	if ( argc < 3 || argc > 9 ) PRINT_USAGE();
-	char *inputFilename = argv[1], *prefixStr = argv[2];
+	if ( argc < 3 || argc > 12 ) PRINT_USAGE();
+	int carg = 1;
+	char *inputFilename = argv[carg++];
+	char *read2Str = 0; 
+	if (!strcmp(argv[carg],"PE")) ++carg, read2Str = argv[carg++]; 
+	printf("%ssing paired-end reads %s\n", read2Str ? "U" : "Not u", read2Str ? read2Str : ""); 
+	char *prefixStr = argv[carg++];
+	//printf("argc=%d, carg=%d\n", argc, carg);
+	if (carg > argc) {puts("Error: prefix required."); return 2; }
 	char *fasta_sx = "_filt.fa", *db_sx = ".db", *dp_sx = "_dupes.txt",
-		 *filt_sx = "_filtered.txt";
+		 *filt_sx = "_filtered.txt", *fasta2_sx = "2_filt.fa";
 	char *outputFasta = calloc(1,1+strlen(prefixStr)+strlen(fasta_sx)), 
+		 *outputFasta2 = calloc(1,1+strlen(prefixStr)+strlen(fasta2_sx)),
 		 *outputDB = calloc(1,1+strlen(prefixStr)+strlen(db_sx)),
 		 *outputDP = calloc(1,1+strlen(prefixStr)+strlen(dp_sx)),
 		 *outputFL = calloc(1,1+strlen(prefixStr)+strlen(filt_sx));
 	strcpy(outputFasta,prefixStr); strcpy(outputFasta+strlen(prefixStr),fasta_sx);
+	strcpy(outputFasta2,prefixStr); strcpy(outputFasta2+strlen(prefixStr),fasta2_sx);
 	strcpy(outputDB,prefixStr); strcpy(outputDB+strlen(prefixStr),db_sx);
 	strcpy(outputDP,prefixStr); strcpy(outputDP+strlen(prefixStr),dp_sx);
 	strcpy(outputFL,prefixStr); strcpy(outputFL+strlen(prefixStr),filt_sx);
-	/* printf("strings (prefix %s):\n%s\n%s\n%s\n",prefixStr, outputFasta,outputDB,outputDP);
-	fopen(outputFasta,"wb");
-	fopen(outputDB,"wb");
-	fopen(outputDP,"wb");
-	return 0; */
 	FILE *fp = fopen(inputFilename, "rb");
-	if (fp == NULL) { puts("Invalid input FASTA"); return 2; }
+	FILE *r2 = read2Str ? fopen(read2Str,"rb") : 0;
+	if (!fp || (read2Str && !r2)) { puts("Invalid input FASTA(s)"); return 2; }
 	FILE *off = fopen(outputFasta, "wb"), *ofd = fopen(outputDB,"wb");
-	if (!off || !ofd) { puts("Invalid output prefix"); return 2; }
+	FILE *off2 = read2Str ? fopen(outputFasta2, "wb") : 0;
+	if (!off || !ofd || (read2Str && !off2)) 
+		{ puts("Invalid output prefix; cannot create output file(s)."); return 2; }
 	FILE *ofdp=0, *ofdpF = 0;
-	size_t trim = UINT16_MAX;
+	size_t trim = UINT16_MAX, trim2 = UINT16_MAX;
 	int doRC = 0, doLog = 0; 
-	double filt_i = 0.f; int copyNumThres = 0; // denoisers (k-filter not yet implemented)
-	int numThreads = 1;
+	double filt_i = 0.f; int copyNumThres = 0; // denoisers
+	int numThreads = 1, convert_amb = 0;
 	if (strcmp(argv[argc-1],"ST")) { // enable MT if not "ST"
 		#ifdef _OPENMP
 			numThreads = omp_get_max_threads();
 		#endif
 	} else --argc;
+	if (!strcmp(argv[argc-1],"CN")) { // convert N's to A's
+		convert_amb = 1;
+		--argc;
+	} 
 	if (argc > 3 && !strcmp(argv[argc-1],"LOG")) { // enable MT if not "ST"
 		doLog = 1;
 		ofdp=fopen(outputDP,"wb");
@@ -926,7 +1027,8 @@ int main( int argc, char *argv[] ) {
 			if (filt_i >= 1.f) {
 				copyNumThres = filt_i;
 				filt_i -= copyNumThres;
-				printf("Performing NINJA replicon-denoising at %u compacted reads.\n", copyNumThres);
+				if (copyNumThres > 1 || !read2Str) printf("Performing NINJA replicon-denoising"
+					" at %u %sreads.\n", copyNumThres, read2Str ? "" : "compacted ");
 			}
 			if (filt_i) { // Use the decimal remainder as kmer denoising
 				printf("Performing NINJA k-mer denoising at %.0f k-mers\n", filt_i*1000.f);
@@ -937,30 +1039,43 @@ int main( int argc, char *argv[] ) {
 		argc -= 2;
 	}
 	int (*cmpF)(WTYPE *, WTYPE *, uint16_t, uint16_t) = 
-		copyNumThres ? &ycmp : &zcmp; //zcmp can replace xcmp
+		(copyNumThres && !read2Str) ? &ycmp : &zcmp; //zcmp replaces xcmp
 	if (!copyNumThres) copyNumThres = filt_i ? -1 : 1; 
 	if (argc > 3 && !strcmp(argv[argc-1],"RC")) {
 		printf("Reverse complementing the sequences.\n");
 		doRC = 1; --argc;
 	}
 	// Flags for truncation after specified base
-	if (argc == 4) { 
-		trim = atoi(argv[argc-1]);
-		printf("Trimming input sequences to %d bases.\n", trim);
+	if (argc == 4 || (read2Str && argc > 5)) { 
+		char *arg = argv[argc-1];
+		int tlen = strlen(arg); 
+		char *cix = strchr(arg,',');
+		trim = atoi(argv[argc-1]) ?: trim;
+		if (cix) trim2 = atoi(cix+1) ?: trim2; else trim2 = trim;
+		printf("Trimming %s sequences to %d bases.\n", read2Str && cix ? "r1" : "input", trim);
+		if (read2Str && cix) printf("Trimming r2 sequences to %d bases.\n",trim2);
 	}
 	
-	C2Xb = calloc(128,sizeof(WTYPE));
+	C2Xb = calloc(256,sizeof(WTYPE));
 	C2Xb['a'] = 0; C2Xb['A'] = 0; 
 	C2Xb['c'] = 1; C2Xb['C'] = 1; 
 	C2Xb['g'] = 2; C2Xb['G'] = 2;
 	C2Xb['t'] = 3; C2Xb['T'] = 3;
+	ACCEPTED = calloc(256,sizeof(*ACCEPTED));
+	ACCEPTED['a'] = 1; ACCEPTED['A'] = 1; 
+	ACCEPTED['c'] = 1; ACCEPTED['C'] = 1; 
+	ACCEPTED['g'] = 1; ACCEPTED['G'] = 1; 
+	ACCEPTED['t'] = 1; ACCEPTED['T'] = 1; 
 	
 	size_t numElem = 1000, ns=0;
 	char **Samples = malloc(numElem*sizeof(char *));
 	char **SeqIDs = doLog ? malloc(numElem*sizeof(*SeqIDs)) : 0;
 	WTYPE **ReadsX = malloc(numElem*sizeof(WTYPE *));
+	//WTYPE **ReadsX2 = read2Str ? malloc(numElem*sizeof(WTYPE *)) : 0;
 	uint16_t *Sizes = calloc(numElem,sizeof(uint16_t));
-	char *line = malloc(LINELEN + 1); // read up to  65k
+	uint16_t *Sizes2 = read2Str ? calloc(numElem,sizeof(uint16_t)) : 0;
+	char *line = malloc(LINELEN + 1), *initLine = line, // read up to  65k
+		*line2 = malloc(LINELEN + 1), *initLine2 = line2;
 	
 	// prepare array and initial array size for kmer filtering
 	/* KMer *AllKmers = 0; size_t kArraySize = 100000, 
@@ -1002,15 +1117,20 @@ int main( int argc, char *argv[] ) {
 			}
 		}
 	}
-	
+	size_t ns_amb = 0, n_warned = 0, rejected = 0; 
 	while (line = fgets(line,LINELEN,fp)) { 
 		if (ns == numElem) {
 			numElem *= 2;
 			Samples = realloc(Samples,numElem * sizeof(char *));
 			ReadsX = realloc(ReadsX, numElem * sizeof(WTYPE *));
 			Sizes = realloc(Sizes, numElem*sizeof(uint16_t));
+			if (read2Str) {
+				//ReadsX2 = realloc(ReadsX2, numElem * sizeof(WTYPE *));
+				Sizes2 = realloc(Sizes2, numElem*sizeof(uint16_t));
+				if (!Sizes2) {puts("Error in resize"); return 3;} // !ReadsX2 || 
+			}
 			if (!Samples || !ReadsX || !Sizes) {puts("Error in resize"); return 3;}
-			memset(Sizes+numElem/2 + 1,0,(numElem/2-1)*sizeof(uint16_t));
+			//memset(Sizes+numElem/2 + 1,0,(numElem/2-1)*sizeof(uint16_t)); // ness?
 			if (doLog) {
 				SeqIDs = realloc(SeqIDs, numElem * sizeof(*SeqIDs));
 				if (!SeqIDs) {puts("Error in resize"); return 3;}
@@ -1037,7 +1157,7 @@ int main( int argc, char *argv[] ) {
 			*dest++ = *beginSample++;
 		*dest = 0;
 
-		// copy in the encoded sequence
+		// copy in the encoded sequence(s)
 		if (!(line = fgets(line,LINELEN,fp))) 
 			{ puts("Error reading file."); return 2; }
 		src = line;
@@ -1050,19 +1170,37 @@ int main( int argc, char *argv[] ) {
 			printf("Warning: truncating read %llu.\n",ns);
 			length = UINT16_MAX - 1;
 		}
-		size_t numPacks = length/PACKSIZE;
+		size_t numPacks; 
+		
+		// Check second sequence
+		int len2 = 0; char *src2;
+		if (read2Str) {
+			fgets(line2,LINELEN,r2); // skip sample
+			if (!(line2 = fgets(line2,LINELEN,r2))) 
+				{ puts("Error reading file [ido]."); return 2; }
+			len2 = strlen(line2);
+			if (line2[len2-1] == '\n') --len2; // lop off newline(s)
+			if (line2[len2-1] == '\r') --len2; // supports every platform!
+			src2 = line2; 
+			if (trim2 < len2) src2 += len2 - trim2, len2 = trim2;
+			if (len2 >= UINT16_MAX) { 
+				printf("Warning: truncating read 2: %llu.\n",ns);
+				len2 = UINT16_MAX - 1;
+			}
+			Sizes2[ns] = len2; 
+			length += len2; // first length is compounded
+		}
+		Sizes[ns] = length; 
+		numPacks = length/PACKSIZE;
 		if (numPacks * PACKSIZE < length) ++numPacks;
 		
-		Sizes[ns] = length; 
 		ReadsX[ns] = malloc(numPacks*sizeof(WTYPE));
 		if (!ReadsX[ns]) {puts("Bad ReadsX[ns] mem"); return 3; }
 		
-		WTYPE *thisPack = ReadsX[ns];
-		WTYPE clump = C2Xb[*src++]; 
-		
 		#define GENERATE_WORD_PRE() \
-		for (int k = 1, z = 2; k < length; ++k, ++z) { \
+		for (; k < bound; ++k, ++z) { \
 			clump <<= 2u; \
+			!ACCEPTED[*src] && (amb=1,++n_warned);\
 			clump += C2Xb[*src++]; \
 			if (z == PACKSIZE) *thisPack++ = clump, z = 0; 
 		#define GENERATE_KMER() \
@@ -1075,7 +1213,10 @@ int main( int argc, char *argv[] ) {
 			} \
 		} 
 		#define GENERATE_WORD_POST() } 
-		
+		int k = 1, z = 2, bound = length - len2, amb = 0;
+		WTYPE *thisPack = ReadsX[ns];
+		WTYPE clump = C2Xb[*src]; 
+		!ACCEPTED[*src++] && (amb=1,++n_warned);
 		if (filt_i) 
 			GENERATE_WORD_PRE()
 			GENERATE_KMER()
@@ -1083,10 +1224,36 @@ int main( int argc, char *argv[] ) {
 		else
 			GENERATE_WORD_PRE()
 			GENERATE_WORD_POST()
+		if (read2Str) {
+			k = 0; // also resets k-mer for read 2
+			bound = len2;
+			src = src2;
+			if (filt_i) 
+				GENERATE_WORD_PRE()
+				GENERATE_KMER()
+				GENERATE_WORD_POST()
+			else
+				GENERATE_WORD_PRE()
+				GENERATE_WORD_POST()
+		}
 		numPacks *= PACKSIZE;
 		if (numPacks > length) *thisPack++ = clump << ((numPacks - length) << 1);
+		if (amb) {
+			++ns_amb;
+			if (!convert_amb) {
+				if (doLog) {
+					++rejected;
+					fprintf(ofdpF,"%s%s\tAMBIGUOUS\n",Samples[ns],SeqIDs[ns]); 
+					free(SeqIDs[ns]); 
+				}
+				free(Samples[ns]); free(ReadsX[ns]); 
+				continue; //without incrementing
+			}
+		}
 		++ns;
 	}
+	if (n_warned) printf("WARNING: Found %llu sequences with ambiguity"
+		" (%llu ambiguous bases).\n",ns_amb,n_warned);
 	KMerX *master = 0;
 	if (filt_i) { 
 		if (queuedClumps) clumpParachute(Roots,Clumps,NumsInserted, 
@@ -1121,19 +1288,25 @@ int main( int argc, char *argv[] ) {
 		for (unsigned i = 0; i < ns; ++i) 
 		fprintf(ofdp,"%s\n",SeqIDs[i]);
 	exit(3); */
-	printf("Num of sequences: %u\n",ns);
+	printf("Number of sequences: %u\n",ns + ns_amb);
 	if (ns > UINT32_MAX) {puts("Too many sequences (>4 bil)."); return 4;}
 	printf("Total reads considered: %u\n",ns);
+	/* FILE *bogus = fopen("bogus.txt","wb");
+	for (int i = 0; i < ns; ++i) {
+		char a[10000] = {0}, b[10000] = {0}, aw[100] = {0}, bw[100] = {0};
+		fprintf(bogus,">%s\n%s%s\n",Samples[i],decodeStringX(ReadsX[i],Sizes[i],aw,a),decodeStringX(ReadsX2[i],Sizes2[i],bw,b));
+	}
+	return 0; */
 #ifdef PROFILE
 	printf("->Short read parse: %f\n", 
 		((double) (clock() - start)) / CLOCKS_PER_SEC); start = clock();
 #endif
-	
 	// Create index structure for sequences read (in 32-bit)
 	uint32_t *SeqIX = malloc(sizeof(uint32_t) * ns);
 	size_t k = 0; 
 	for (; k < ns; ++k) SeqIX[k] = k;
-	superSort2(SeqIX, ReadsX, Sizes, 0,0,ns);
+	//read2Str ? superSort2PE(SeqIX, ReadsX, ReadsX2, Sizes, Sizes2, 0, 0, ns) : 
+		superSort2(SeqIX, ReadsX, Sizes, 0,0,ns);
 	printf("\nDONE SORTING. \n");
 	
 	char ***smpSrt = malloc(ns * sizeof(char **)),
@@ -1150,7 +1323,6 @@ int main( int argc, char *argv[] ) {
 	printf("%d Samples found.\n",x);
 	fprintf(ofd, "%u\n", x);
 	for (k=0; k < x; ++k) fprintf(ofd,"%s\n",SmpDD[k]);
-	
 #ifdef PROFILE
 	printf("->Short read sample prep: %f\n", 
 		((double) (clock() - start)) / CLOCKS_PER_SEC); start = clock();
@@ -1165,7 +1337,8 @@ int main( int argc, char *argv[] ) {
 #endif
 	#define WRITE_SUPPORTED_DUPE() {\
 		if (copies >= copyNumThres || (copies >= i_copyThres && \
-			findRarestK(master, ReadsX[prevIX], Sizes[prevIX]) >= filt_n)) { \
+			(read2Str ? findRarestK_PE(master,ReadsX[prevIX], Sizes[prevIX],Sizes2[prevIX]) : \
+			findRarestK(master, ReadsX[prevIX], Sizes[prevIX])) >= filt_n)) { \
 			/* printf("\nfound rarest K=%llu\n",findRarestK2(master, ReadsX[prevIX], Sizes[prevIX])); */ \
 			if (doLog) { \
 				/* while (++lastLogged <= k) */ \
@@ -1177,37 +1350,57 @@ int main( int argc, char *argv[] ) {
 			for (int y = 0; y < x; ++y) \
 				if (Counts[y]) fprintf(ofd,"%u:%u:",y,Counts[y]), Counts[y] = 0; \
 			fprintf(ofd,"\n"); \
-			if (doRC) fprintf(off,">%u\n%s\n",rix++, decodeStringXRC(ReadsX[prevIX], \
-				Sizes[prevIX],word,string)); \
-			else fprintf(off,">%u\n%s\n", rix++, decodeStringX(ReadsX[prevIX], \
-				Sizes[prevIX],word,string)); \
+			if (doRC) { \
+				char *bon = decodeStringXRC(ReadsX[prevIX], Sizes[prevIX],word,string); \
+				if (read2Str) { \
+					fprintf(off,">%u\n%s\n",rix, bon + Sizes2[prevIX]); \
+					bon[Sizes2[prevIX]] = 0; \
+					fprintf(off2,">%u\n%s\n",rix, bon); \
+				} else fprintf(off,">%u\n%s\n",rix, bon); \
+				++rix; \
+			} \
+			else { \
+				char *bon = decodeStringX(ReadsX[prevIX], Sizes[prevIX],word,string); \
+				if (read2Str) { \
+					fprintf(off2,">%u\n%s\n", rix, bon + Sizes[prevIX] - Sizes2[prevIX]); \
+					bon[Sizes[prevIX] - Sizes2[prevIX]] = 0; \
+					fprintf(off,">%u\n%s\n", rix, bon); \
+				} else fprintf(off,">%u\n%s\n", rix, bon); \
+				++rix; \
+			} \
 		} \
 		else { \
 			if (doLog) { \
 				for (unsigned w = lastLogged; w < k; ++w) \
-					++rejected, fprintf(ofdpF,"%s%s\n",Samples[SeqIX[w]],SeqIDs[SeqIX[w]]); \
+					++rejected, fprintf(ofdpF,"%s%s\tFILTERED\n", \
+					Samples[SeqIX[w]],SeqIDs[SeqIX[w]]); \
 				lastLogged = k; \
 			} \
 			memset(Counts,0,x*sizeof(unsigned)); \
 		} \
 		copies = 1; \
 	}
-	size_t committed = 0, rejected = 0;
+	size_t committed = 0; //, rejected = 0; // now defined before main loop
 	unsigned copies = 1, dupes = 0, rix=0;
 	char *string = malloc(UINT16_MAX), *word = calloc(PACKSIZE+1,1);
 	unsigned prevIX, thisIX, lastLogged = 0;
 	for (k=1; k < ns; ++k) {
 		prevIX = SeqIX[k-1]; thisIX = SeqIX[k];
 		++Counts[crBST(Samples[prevIX],x-1,SmpDD)];
-		if (cmpF(ReadsX[prevIX],ReadsX[thisIX],Sizes[prevIX], Sizes[thisIX])) 
-			WRITE_SUPPORTED_DUPE()
+		if (cmpF(ReadsX[prevIX],ReadsX[thisIX],Sizes[prevIX], Sizes[thisIX])) {
+			//if (!read2Str || cmpF(ReadsX2[prevIX],ReadsX2[thisIX],Sizes2[prevIX],
+			//	Sizes2[thisIX])) 
+					WRITE_SUPPORTED_DUPE()
+		}
+		//else if (read2Str && cmpF(ReadsX2[prevIX],ReadsX2[thisIX],Sizes2[prevIX],
+		//		Sizes2[thisIX])) WRITE_SUPPORTED_DUPE()
 		else { ++copies; ++dupes; }
 	}
 	prevIX = thisIX;
 	++Counts[crBST(Samples[prevIX],x-1,SmpDD)]; // add last count
 	WRITE_SUPPORTED_DUPE()
-	if (doLog) printf("Number rejected = %llu, committed = %llu\n",
-		rejected,committed);
+	if (doLog) printf("Number of reads rejected = %llu, committed = %llu\n",
+		rejected, committed);
 #ifdef PROFILE
 	printf("->Mapping and file writing: %f\n", 
 		((double) (clock() - start)) / CLOCKS_PER_SEC); start = clock();
