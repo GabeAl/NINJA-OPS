@@ -408,18 +408,27 @@ endGame:
 		}
 		// BIOM 1.0 (sparse) format output handler
 		else { 
+			unsigned long *imap = malloc(ilines*sizeof(*imap));
+			unsigned long i, j, curIx = 0; // *row, *rowP;
+			for (i = 0; i < ilines; i++) { 
+				imap[i] = -1;
+				for (j = 0; j < numSamps; ++j) 
+					if (OtuTable[i*numSamps + j]) {imap[i] = curIx++; break;}
+			}
 			time_t t = time(NULL);
 			struct tm tm = *localtime(&t);
-			fprintf(ofp, "{\n\"id\":null,\n\"format\": \"NINJA-BIOM " NINJA_VER "(BIOM 1.0)\",\n"
+			fprintf(ofp, "{\n\"id\":null,\n\"format\": \"NINJA-BIOM " NINJA_VER " (BIOM 1.0)\",\n"
 			"\"format_url\": \"http://biom-format.org/documentation/format_versions/biom-1.0.html\",\n"
 			"\"type\": \"OTU table\",\n\"generated_by\": \"NINJA " NINJA_VER "\",\n"
-			"\"date\": \"%d-%d-%dT%d:%d:%d\",\n", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, 
-			tm.tm_hour, tm.tm_min, tm.tm_sec);
+			"\"date\": \"%d-%d-%dT%s%d:%s%d:%s%d\",\n", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, 
+			tm.tm_hour < 10 ? "0" : "", tm.tm_hour, tm.tm_min < 10 ? "0" : "", tm.tm_min,
+			tm.tm_sec < 10 ? "0" : "", tm.tm_sec);
 
 			// Write the rows in the biom format
 			fprintf(ofp, "\"rows\":[");
 			unsigned long *OtuP = OtuList - 1;
 			int ix = ilines; do { // display the "row" lines
+				if (imap[ilines - ix] == -1) {++OtuP; continue;}
 				fprintf(ofp,"\n\t{\"id\":\"%lu\", \"metadata\":",*++OtuP);
 				if (doTaxmap) {
 					fprintf(ofp,"{\"taxonomy\":[");
@@ -435,29 +444,29 @@ endGame:
 					
 				}
 				else fprintf(ofp,"null}");
-				if (ix > 1) fprintf(ofp,",");
+				fprintf(ofp,",");
 			} while (--ix);
+			fseek(ofp, -1, SEEK_CUR);
 			fprintf(ofp, "\n],\n");
 			
 			// Write sparse columns
 			char **SampP = SampDBdump - 1;
 			fprintf(ofp, "\"columns\": [");
-			ix = numSamps; do {
-				fprintf(ofp, "\n\t{\"id\":\"%s\", \"metadata\":null}", *++SampP);
-				if (ix > 1) fprintf(ofp,",");
-			} while (--ix);
+			ix = numSamps; do 
+				fprintf(ofp, "\n\t{\"id\":\"%s\", \"metadata\":null},", *++SampP);
+			while (--ix);
+			fseek(ofp, -1, SEEK_CUR);
 			fprintf(ofp, "\n],\n");
 			
 			// Write structure, data
 			fprintf(ofp,"\"matrix_type\": \"sparse\",\n\"matrix_element_type\": \"int\",\n"
 				"\"shape\": [%lu, %lu],\n", ilines, numSamps);
 			fprintf(ofp,"\"data\":[");
+			
 			// loop thru all points
-			unsigned long i, j; // *row, *rowP;
-			//*OtuP = OtuList - 1;
 			for (i = 0; i < ilines; i++) for (j = 0; j < numSamps; j++) {
 				if (OtuTable[i * numSamps + j]) 
-					fprintf(ofp, "[%lu,%lu,%lu],\n\t", i, j, OtuTable[i * numSamps + j]);
+					fprintf(ofp, "[%lu,%lu,%lu],\n\t", imap[i], j, OtuTable[i * numSamps + j]);
 			}
 			fseek(ofp, -3, SEEK_CUR);
 			fprintf(ofp,"]\n}");
