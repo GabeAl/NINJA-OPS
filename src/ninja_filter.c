@@ -1275,15 +1275,15 @@ int main( int argc, char *argv[] ) {
 		#ifdef DEBUG
 			reportAvMaxDepth(master);
 		#endif
-		rexalloc(numThreads);
+		//rexalloc(numThreads);
 	}
 	
 	fclose(fp);
 	free(line);
 	// Shrink data structures for more memory
-	Samples = realloc(Samples,ns * sizeof(char *));
-	ReadsX = realloc(ReadsX, ns * sizeof(WTYPE *));
-	Sizes = realloc(Sizes, ns * sizeof(uint16_t));
+	Samples = realloc(Samples,ns * sizeof(*Samples));
+	ReadsX = realloc(ReadsX, ns * sizeof(*ReadsX));
+	Sizes = realloc(Sizes, ns * sizeof(*Sizes));
 	/* if (doLog) SeqIDs = realloc(SeqIDs, ns *sizeof(*SeqIDs));
 		for (unsigned i = 0; i < ns; ++i) 
 		fprintf(ofdp,"%s\n",SeqIDs[i]);

@@ -374,7 +374,6 @@ int main ( int argc, char *argv[] )
 		fprintf(log2, "%lu\t%lu\n", rix, amt); 
 #endif
 		while (*++cix != '\n');
-		
 	}
 endGame:
 #ifdef PROFILE
@@ -441,7 +440,6 @@ endGame:
 						*taxon = ';';
 					}
 					fprintf(ofp,"\"%s\"]}}", taxon + 2);
-					
 				}
 				else fprintf(ofp,"null}");
 				fprintf(ofp,",");
