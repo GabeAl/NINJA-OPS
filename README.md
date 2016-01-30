@@ -60,11 +60,11 @@ Sample commands are as follows:
 # Takes a fasta file as input (-i) and outputs its OTU map, OTU table and a list of sequences culled by NINJA to the default output folder ninja_output in your current working directory
 python ninja.py -i seqs.fna 
 
-# Takes a fasta file as input (-i), reverse complements all reads within it (-r) and outputs its OTU map, OTU table and a list of sequences culled by NINJA to the folder seqs_output (-o)
-python ninja.py -i seqs.fna -o seqs_output -r
+# Takes a fasta file as input (-i), reverse complements all reads within it (-r) and outputs its OTU map, OTU table and a list of sequences culled by NINJA to the folder ninja (-o)
+python ninja.py -i seqs.fna -o ninja -r
 
-# Takes a fasta file as input (-i), trims all sequences down to 200 base pairs (-t 200), denoises data by discarding all reads that appear less than 3 times and all kmers that appear less than 5 times (-d 3.0001) and outputs to folder seqs_output (-o)
-python ninja.py -i seqs.fna -t 200 -d 3.005 -o seqs_output
+# Takes a fasta file as input (-i), trims all sequences down to 200 base pairs (-t 200), denoises data by discarding all reads that appear fewer than 3 times and outputs to folder ninja (-o)
+python ninja.py -i seqs.fna -t 200 -d 3 -o ninja
 
 # Takes a fasta file as input (-i) and runs bowtie2 with maximum sensitivity (-m max)
 python ninja.py -i seqs.fna -m max
