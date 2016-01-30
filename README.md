@@ -118,7 +118,7 @@ For legacy table output, add ``--legacy`` to the end of the command above
 Contact
 ---
 
-Created by Gabe Al Ghalith, Henry Ward, Emmanuel Montassier, and Dan Knights in the Knights Lab at the University of Minnesota (algh0022@umn.edu). Questions, comments and concerns can also be directed to Dan Knights (dknights@umn.edu).
+Created by Gabe Al Ghalith, Emmanuel Montassier, Henry Ward, and Dan Knights in the Knights Lab at the University of Minnesota (algh0022@umn.edu). Questions, comments and concerns can also be directed to Dan Knights (dknights@umn.edu).
 
 
 Licensing
