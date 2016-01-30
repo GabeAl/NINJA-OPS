@@ -250,7 +250,7 @@ def ninja_filter(inputSeqsFile, inputSeqsFile2, file_prefix, trim, trim2, RC, de
     ninjaDirectory = os.path.abspath(os.path.dirname(os.path.realpath(__file__)))
     ninjaDirectory = os.path.abspath(os.path.join(ninjaDirectory, os.pardir))
     if sys.platform.startswith("darwin") or sys.platform.startswith("os"):      # Mac
-      ninjaFilterFile = os.path.join(ninjaDirectory, os.path.join("bin", "ninja_filter_mac_beta"))
+      ninjaFilterFile = os.path.join(ninjaDirectory, os.path.join("bin", "ninja_filter_mac"))
     elif sys.platform.startswith("win32") or sys.platform.startswith("cygwin"):   # Windows and cygwin
       ninjaFilterFile = os.path.join(ninjaDirectory, os.path.join("bin", "ninja_filter.exe"))
     else:   # Linux
