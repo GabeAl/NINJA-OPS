@@ -19,16 +19,19 @@ The latest NINJA version can always be found on Github (https://github.com/GabeA
 ---
 
 1.2
-Removed extraneous code, added some interface features, simplified denoising.
-1.1 (November 23rd, 2015)
-1.0 (July 17th, 2015)
+Removed extraneous code, added some interface features, simplified denoising.  
 
+1.1 (November 23rd, 2015)  
+Improved Stability  
+
+1.0 (July 17th, 2015)  
+Initial submitted version  
 
 ##Dependencies
 ---
 
 
-Python 2.7 for wrapper (no additional libraries, such as numpy, are necessary)
+Python 2.7 for wrapper (no additional libraries, such as numpy, are necessary)  
 Bowtie2
 
 
@@ -43,7 +46,7 @@ Bowtie2
 2. Download and unzip bowtie2 ( http://sourceforge.net/projects/bowtie-bio/files/bowtie2/ ). If you wish to use a different sequence aligner, you cannot run the wrapper ninja.py. Instructions below.
 3. Copy the executable "bowtie-2-align-s" and paste it to the main folder of the ninja package. Alternatively, you can add the bowtie-2-align-s executable (or all Bowtie2 executables) to your system PATH variable.
 
-IMPORTANT: Do NOT copy "bowtie-2-align-s" to any other folder (for instance, bt2db). NINJA-OPS looks for bowtie2 only in the same folder ninja.py is located in, or on the system executable path.
+IMPORTANT: Do not copy "bowtie-2-align-s" to any other folder (for instance, bt2db). NINJA-OPS looks for bowtie2 only in the same folder ninja.py is located in, or on the system executable path.
 
 ##Instructions
 ---
@@ -55,21 +58,27 @@ Sample commands are as follows:
 
 ```
 # Takes a fasta file as input (-i) and outputs its OTU map, OTU table and a list of sequences culled by NINJA to the default output folder ninja_output in your current working directory
-> python ninja.py -i seqs.fna 
+python ninja.py -i seqs.fna 
 
 # Takes a fasta file as input (-i), reverse complements all reads within it (-r) and outputs its OTU map, OTU table and a list of sequences culled by NINJA to the folder seqs_output (-o)
-> python ninja.py -i seqs.fna -o seqs_output -r
+python ninja.py -i seqs.fna -o seqs_output -r
 
 # Takes a fasta file as input (-i), trims all sequences down to 200 base pairs (-t 200), denoises data by discarding all reads that appear less than 3 times and all kmers that appear less than 5 times (-d 3.0001) and outputs to folder seqs_output (-o)
-> python ninja.py -i seqs.fna -t 200 -d 3.005 -o seqs_output
+python ninja.py -i seqs.fna -t 200 -d 3.005 -o seqs_output
 
 # Takes a fasta file as input (-i) and runs bowtie2 with maximum sensitivity (-m max)
-> ninja.pyc -i seqs.fna -m max
+python ninja.py -i seqs.fna -m max
 
 # Takes a fasta file as input (-i) and runs bowtie2 with maximum speed (-m fast)
-> ninja.pyc -i seqs.fna -m fast
-```
+python ninja.py -i seqs.fna -m fast
 
+# Runs NINJA-OPS on paired-end data,
+# Trimming from the end of the forward read to 150 base pairs
+# and the beginning of the reverse read to 125 base pairs
+# Allowing up to 600 bases length in the alignment from the start of the forward
+# to the end of the reverse read
+ninja.py -i forward.fna,reverse.fna -o ninja -I 600 -t 150 -T 125
+```
 
 
 ###Custom usage
