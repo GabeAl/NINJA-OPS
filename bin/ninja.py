@@ -6,7 +6,7 @@ import subprocess
 from subprocess import Popen, PIPE
 import sys
 import shutil
-__version__ = "Ninja 1.2.0"
+__version__ = "Ninja 1.3.0"
 
 ###
 #   CLASSES
