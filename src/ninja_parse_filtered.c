@@ -22,7 +22,7 @@
 #include <stdlib.h>
 #include <time.h>
 #define ARRSZ 16
-#define NINJA_VER "1.2"
+#define NINJA_VER "1.3"
 #define SHOW_USAGE() {\
 	printf( "\nNINJA Is Not Just Another - OTU Picking Solution v" NINJA_VER ": Parser. Usage:\n");\
 	printf( "ninja_parse in_PREFIX in_aligns.sam in_NINJA.map [in_taxa.txt] [--legacy] [LOG]\n" );\
@@ -296,8 +296,7 @@ int main ( int argc, char *argv[] )
 	unsigned long numSamps = atol(*SampDBdump++), numReads = slines - numSamps - 1; // max reads possible
 	char **Seq2samp = SampDBdump + numSamps;
 	printf("Number of unique samples: %lu, max reads: %lu\n", numSamps, numReads);
-	
-	// Processes SAM file generated from bowtie
+    // Processes SAM file generated from bowtie
 	fseek(ifp, 0, SEEK_END); size_t fsize = ftell(ifp); fseek(ifp, 0, SEEK_SET); 
 	//size_t sz = lseek(fileno(fp), 0, SEEK_END); rewind(fp);
 	char *string = malloc(fsize + 1); // Allocates a block of memory (direct bytes)
@@ -321,15 +320,14 @@ int main ( int argc, char *argv[] )
 	FILE *log = fopen("parseLog.txt", "wb");
 	FILE *log2 = fopen("map_seqid_reps.txt", "wb");
 #endif
-	//unsigned long lcounter = 0;
+
+	unsigned long lcounter = 0;
+    //puts("I'm not a seg fault!");
 	while (*++cix) { // != '\t' && *cix != '\n') { // work through the sample string
-		//++lcounter;
+        if (++lcounter >= numReads) break; 
 		startS = cix;
 		// lookahead to the read map region
-		tabs = 0; do {
-			if (!*cix) goto endGame; // workaround for mac compiler race condition
-			if (*++cix == '\t') ++tabs; 
-		} while (tabs < 2);
+		tabs = 0; do if (*++cix == '\t') ++tabs; while (tabs < 2);
 		if (*++cix == '*') {
 			if (doLog) fprintf(logFail,"%s",AllSamps[atol(startS)]);
 			while (*++cix != '\n')
@@ -376,6 +374,7 @@ int main ( int argc, char *argv[] )
 		fprintf(log2, "%lu\t%lu\n", rix, amt); 
 #endif
 		while (*++cix != '\n');
+		
 	}
 endGame:
 #ifdef PROFILE
