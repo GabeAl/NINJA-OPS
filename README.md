@@ -57,13 +57,19 @@ Simply run "python ninja.py" in your command line to put your data through the e
 Sample commands are as follows:
 
 ```
-# Takes a fasta file as input (-i) and outputs its OTU map, OTU table and a list of sequences culled by NINJA to the default output folder ninja_output in your current working directory
+# Takes a fasta file as input (-i) and outputs its OTU map, OTU table and a
+# list of sequences culled by NINJA to the default output folder
+# ninja_output in your current working directory
 python ninja.py -i seqs.fna 
 
-# Takes a fasta file as input (-i), reverse complements all reads within it (-r) and outputs its OTU map, OTU table and a list of sequences culled by NINJA to the folder ninja (-o)
+# Takes a fasta file as input (-i), reverse complements all reads within it
+# (-r) and outputs its OTU map, OTU table and a list of sequences culled by
+# NINJA to the folder ninja (-o)
 python ninja.py -i seqs.fna -o ninja -r
 
-# Takes a fasta file as input (-i), trims all sequences down to 200 base pairs (-t 200), denoises data by discarding all reads that appear fewer than 3 times and outputs to folder ninja (-o)
+# Takes a fasta file as input (-i), trims all sequences down to 200 base pairs
+# (-t 200), denoises data by discarding all reads that appear fewer than 3
+# times and outputs to folder ninja (-o)
 python ninja.py -i seqs.fna -t 200 -d 3 -o ninja
 
 # Takes a fasta file as input (-i) and runs bowtie2 with maximum sensitivity (-m max)
