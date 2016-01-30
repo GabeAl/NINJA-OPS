@@ -17,10 +17,10 @@ The latest NINJA version can always be found on Github (https://github.com/GabeA
 
 ##Version
 ---
-1.3 (January 29, 2016)
+1.3 (January 29, 2016)  
 Added explicit paired-end support, filter reasons to log file, streamlined BIOM format, improved Mac stability, alternative ambiguity handling schemes, updated commandline interface, and more.
 
-1.2 (December 7, 2015)
+1.2 (December 7, 2015)  
 Removed extraneous code, added some interface features, simplified denoising.  
 
 1.1 (November 23rd, 2015)  
