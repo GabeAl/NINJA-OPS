@@ -77,7 +77,7 @@ python ninja.py -i seqs.fna -m fast
 # and the beginning of the reverse read to 125 base pairs
 # Allowing up to 600 bases length in the alignment from the start of the forward
 # to the end of the reverse read
-ninja.py -i forward.fna,reverse.fna -o ninja -I 600 -t 150 -T 125
+python ninja.py -i forward.fna,reverse.fna -o ninja -I 600 -t 150 -T 125
 ```
 
 
