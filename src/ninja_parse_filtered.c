@@ -305,6 +305,7 @@ int main ( int argc, char *argv[] )
 		return 1;
 	}
 	fread(string, fsize, 1, ifp); //read into string: elems of fsize bytes, 1 elem, using ifp pointer
+	memset(string+fsize,'\0',1);
 	fclose(ifp); // close the file 
 	
 #ifdef PROFILE
@@ -320,12 +321,8 @@ int main ( int argc, char *argv[] )
 	FILE *log = fopen("parseLog.txt", "wb");
 	FILE *log2 = fopen("map_seqid_reps.txt", "wb");
 #endif
-
-	unsigned long lcounter = 0;
-    //puts("I'm not a seg fault!");
 	while (*++cix) { // != '\t' && *cix != '\n') { // work through the sample string
-        if (++lcounter >= numReads) break; 
-		startS = cix;
+        startS = cix;
 		// lookahead to the read map region
 		tabs = 0; do if (*++cix == '\t') ++tabs; while (tabs < 2);
 		if (*++cix == '*') {
