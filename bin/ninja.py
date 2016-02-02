@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from __future__ import print_function
 import timeit
 import argparse
 import os
@@ -295,8 +296,7 @@ def bowtie2(bowtie2_cmd,filteredSeqsFile, filteredSeqsFile2, alignmentsFile, bow
 
     # Checks if similarity is a percentage
     if similarity > 1 or similarity < 0:
-        print("Similarity error. Enter similarity as a percentage between 0 and 100. Exiting.")
-        sys.exit()
+        raise ValueError("Similarity error. Enter similarity as a percentage between 0 and 100. Exiting.")
 
     similarity = 1 - similarity     # Converts to similarity readable by bowtie2
 
@@ -396,7 +396,10 @@ def clean(inputSeqsFile, filteredSeqsFile, filteredSeqsFile2, seqsDBFile, alignm
             os.remove("map_seqid_reps.txt")
 
     except OSError as e:
-        error(e, msg = "INTERNAL ERROR: Can't find all files marked for moving and/or deletion. Check working directory and output folder.")
+        myError = "INTERNAL ERROR: Can't find all files marked for moving and/or deletion. Check working directory and output folder."
+        logger.log(myError)
+        raise ValueError(myError)
+
 
 # Runs ninja, bowtie2 and then processes output. All files output in specified output folder. 
 # User must specify ninja's directory as an environment variable named 'NINJA_DIR'
@@ -470,13 +473,14 @@ def main(argparser):
     try:
       bowtie2_cmd = "bowtie2-align-s"
       subprocess.check_call(bowtie2_cmd + " --version", shell=run_with_shell, stdout = sys.stdout)
-    except Exception as e:
+    except subprocess.CalledProcessError as e:
       try:
         bowtie2_cmd = os.path.join(ninjaDirectory,"bowtie2-align-s")
         subprocess.check_call(bowtie2_cmd + " --version", shell=run_with_shell, stdout = sys.stdout)
-      except Exception as e:
-        error(e = None, msg = "ERROR: Bowtie2 executable not found in system path or top-level NINJA package folder. Please install bowtie2 and add its accompanying executables to the system path or place bowtie2-align-s in the top-level ninja package folder (not a subfolder). " + \
-                            "Check README.txt for additional instructions. Exiting.", exit = True)
+      except subprocess.CalledProcessError as e:
+        myError = "ERROR: Bowtie2 executable not found in system path or top-level NINJA package folder. Please install bowtie2 and add its accompanying executables to the system path or place bowtie2-align-s in the top-level ninja package folder (not a subfolder). Check README.txt for additional instructions. Exiting."
+        logger.log(myError)
+        raise ValueError(myError)
 
     # Sets variables used in ninja calls. First, ninja_filter files
     file_prefix = os.path.join(outdir, "ninja")
