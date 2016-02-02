@@ -6,7 +6,7 @@ import subprocess
 from subprocess import Popen, PIPE
 import sys
 import shutil
-__version__ = "Ninja 1.3.0"
+__version__ = "Ninja 1.3.1"
 
 ###
 #   CLASSES
@@ -288,7 +288,7 @@ def ninja_filter(inputSeqsFile, inputSeqsFile2, file_prefix, trim, trim2, RC, de
 # OPTIONAL  mode:               'ninja' or 'ninjaMax', for less and more sensitivity, respectively
 #           threads:            number of threads/cores to run bowtie2 on
 #           similarity:         minimum percent similarity between query sequence and reference sequence
-def bowtie2(filteredSeqsFile, filteredSeqsFile2, alignmentsFile, bowtieDatabase, similarity, insert, threads, mode,
+def bowtie2(bowtie2_cmd,filteredSeqsFile, filteredSeqsFile2, alignmentsFile, bowtieDatabase, similarity, insert, threads, mode,
             logger, run_with_shell=True, print_only=False):
 
     # TODO: Automatically convert fasta file if formatted incorrectly
@@ -301,8 +301,8 @@ def bowtie2(filteredSeqsFile, filteredSeqsFile2, alignmentsFile, bowtieDatabase,
     similarity = 1 - similarity     # Converts to similarity readable by bowtie2
 
     # Switches between ninja normal and max according to user input. Only runs in shell on Mac/linux
-
-    cmd = ['bowtie2-align-s','--no-head']
+    
+    cmd = [bowtie2_cmd,'--no-head']
     cmd.append('-x ' + bowtieDatabase)
     cmd.append('-S ' + '"' + alignmentsFile + '"')
     cmd.append('--np 0')
@@ -470,11 +470,11 @@ def main(argparser):
     try:
       bowtie2_cmd = "bowtie2-align-s"
       subprocess.check_call(bowtie2_cmd + " --version", shell=run_with_shell, stdout = sys.stdout)
-    except OSError as e:
+    except Exception as e:
       try:
         bowtie2_cmd = os.path.join(ninjaDirectory,"bowtie2-align-s")
         subprocess.check_call(bowtie2_cmd + " --version", shell=run_with_shell, stdout = sys.stdout)
-      except OSError as e:
+      except Exception as e:
         error(e = None, msg = "ERROR: Bowtie2 executable not found in system path or top-level NINJA package folder. Please install bowtie2 and add its accompanying executables to the system path or place bowtie2-align-s in the top-level ninja package folder (not a subfolder). " + \
                             "Check README.txt for additional instructions. Exiting.", exit = True)
 
@@ -510,7 +510,7 @@ def main(argparser):
     logger.log("Ninja filter time: " + str(t1.timeit(1)))
     logger.log("Running Bowtie...")
     t2 = timeit.Timer(lambda:
-      bowtie2(file_prefix + "_filt.fa", pe_file, alignmentsFile, bowtieDatabase, similarity, args['insert'], threads, mode,
+      bowtie2(bowtie2_cmd,file_prefix + "_filt.fa", pe_file, alignmentsFile, bowtieDatabase, similarity, args['insert'], threads, mode,
         logger, run_with_shell=run_with_shell, print_only=args['print_only'])
     )
     logger.log("Bowtie time: " + str(t2.timeit(1)))
