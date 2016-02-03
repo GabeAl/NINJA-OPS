@@ -43,7 +43,7 @@ Bowtie2
 
 
 
-0. To use the wrapper, make sure you have the a version of Python 2.7 installed on your computer. Python can be found at https://www.python.org/downloads/
+0. To use the wrapper, you need to have a version of Python 2.7 installed on your computer. If you have a recent version of the Mac OS or Linux/Unix OS then you will already have Python 2.7. You can test this by opening the terminal and typing "Python". It will print the version. Then type "exit()" to quit. If you have Windows you may need to install Python. Python can be found at https://www.python.org/downloads/
 1. Download and unzip the ninja package.
 2. Download and unzip bowtie2 ( http://sourceforge.net/projects/bowtie-bio/files/bowtie2/ ). If you wish to use a different sequence aligner, you cannot run the wrapper ninja.py. Instructions below.
 3. Copy the executable "bowtie2-align-s" and paste it to the main folder of the ninja package. Alternatively, you can add the bowtie2-align-s executable (or all Bowtie2 executables) to your system PATH variable.
