@@ -470,13 +470,15 @@ def main(argparser):
     # do not run commands with shell=TRUE on win32 or cygwin
     run_with_shell = not (sys.platform.startswith("win32") or sys.platform.startswith("cygwin"))
 
+    # open /dev/null equivalent to catch unwanted subprocess output
+    FNULL = open(os.devnull, 'w')
     try:
       bowtie2_cmd = "bowtie2-align-s"
-      subprocess.check_call(bowtie2_cmd + " --version", shell=run_with_shell, stdout = sys.stdout)
+      subprocess.check_call(bowtie2_cmd + " --version", shell=run_with_shell, stdout=FNULL, stderr=FNULL)
     except subprocess.CalledProcessError as e:
       try:
         bowtie2_cmd = os.path.join(ninjaDirectory,"bowtie2-align-s")
-        subprocess.check_call(bowtie2_cmd + " --version", shell=run_with_shell, stdout = sys.stdout)
+        subprocess.check_call(bowtie2_cmd + " --version", shell=run_with_shell, stdout=FNULL, stderr=FNULL)
       except subprocess.CalledProcessError as e:
         myError = "ERROR: Bowtie2 executable not found in system path or top-level NINJA package folder. Please install bowtie2 and add its accompanying executables to the system path or place bowtie2-align-s in the top-level ninja package folder (not a subfolder). Check README.txt for additional instructions. Exiting."
         logger.log(myError)
