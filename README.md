@@ -54,7 +54,7 @@ IMPORTANT: Do not copy "bowtie2-align-s" to any other folder (for instance, bt2d
 ---
 
 ###Normal usage
-Simply run "python ninja.py" in your command line to put your data through the entire NINJA pipeline. 
+Simply run `python /path/to/your/ninja/directory/bin/ninja.py` in your command line to put your data through the entire NINJA pipeline. You will have to replace `/path/to/your/ninja/directory/bin/` with the proper filepath to your `ninja.py` file, which is in the `bin` directory in the NINJA-OPS folder.
 
 Sample commands are as follows:
 
@@ -62,30 +62,30 @@ Sample commands are as follows:
 # Takes a fasta file as input (-i) and outputs its OTU map, OTU table and a
 # list of sequences culled by NINJA to the default output folder
 # ninja_output in your current working directory
-python ninja.py -i seqs.fna 
+python /path/to/ninja.py -i seqs.fna 
 
 # Takes a fasta file as input (-i), reverse complements all reads within it
 # (-r) and outputs its OTU map, OTU table and a list of sequences culled by
 # NINJA to the folder ninja (-o)
-python ninja.py -i seqs.fna -o ninja -r
+python /path/to/ninja.py -i seqs.fna -o ninja -r
 
 # Takes a fasta file as input (-i), trims all sequences down to 200 base pairs
 # (-t 200), denoises data by discarding all reads that appear fewer than 3
 # times and outputs to folder ninja (-o)
-python ninja.py -i seqs.fna -t 200 -d 3 -o ninja
+python /path/to/ninja.py -i seqs.fna -t 200 -d 3 -o ninja
 
 # Takes a fasta file as input (-i) and runs bowtie2 with maximum sensitivity (-m max)
-python ninja.py -i seqs.fna -m max
+python /path/to/ninja.py -i seqs.fna -m max
 
 # Takes a fasta file as input (-i) and runs bowtie2 with maximum speed (-m fast)
-python ninja.py -i seqs.fna -m fast
+python /path/to/ninja.py -i seqs.fna -m fast
 
 # Runs NINJA-OPS on paired-end data,
 # Trimming from the end of the forward read to 150 base pairs
 # and the beginning of the reverse read to 125 base pairs
 # Allowing up to 600 bases length in the alignment from the start of the forward
 # to the end of the reverse read
-python ninja.py -i forward.fna,reverse.fna -o ninja -I 600 -t 150 -T 125
+python /path/to/ninja.py -i forward.fna,reverse.fna -o ninja -I 600 -t 150 -T 125
 ```
 
 
