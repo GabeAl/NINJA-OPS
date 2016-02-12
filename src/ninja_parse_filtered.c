@@ -422,10 +422,11 @@ endGame:
 
 			// Write the rows in the biom format
 			fprintf(ofp, "\"rows\":[");
-			unsigned long *OtuP = OtuList - 1;
+			unsigned long *OtuP = OtuList - 1; size_t pcnt = 0;
 			int ix = ilines; do { // display the "row" lines
 				if (imap[ilines - ix] == -1) {++OtuP; continue;}
 				fprintf(ofp,"\n\t{\"id\":\"%lu\", \"metadata\":",*++OtuP);
+				++pcnt;
 				if (doTaxmap) {
 					fprintf(ofp,"{\"taxonomy\":[");
 					char *taxon = *(OtuMap_taxa + uWBS(OtuMap_otus, *OtuP, blines)) - 2, *tP;
@@ -455,7 +456,7 @@ endGame:
 			
 			// Write structure, data
 			fprintf(ofp,"\"matrix_type\": \"sparse\",\n\"matrix_element_type\": \"int\",\n"
-				"\"shape\": [%lu, %lu],\n", ilines, numSamps);
+				"\"shape\": [%lu, %lu],\n", pcnt, numSamps);
 			fprintf(ofp,"\"data\":[");
 			
 			// loop thru all points
