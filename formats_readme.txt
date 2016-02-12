@@ -17,6 +17,9 @@ Database headers must be positive integer numbers in the QIIME OTU format. Strin
 yet supported.
 For example:
 >330201
+SEQUENCE WITHOUT LINE BREAKS
+>291823
+SEQUENCE2 WITHOUT LINE BREAKS
 
 Header formatting instructions -- QUERIES/READS:
 Headers are formatted according to QIIME protocol. That is, minimally, in the format SAMPLENAME_SEQNUMBER [extra info].

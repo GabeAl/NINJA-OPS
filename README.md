@@ -121,10 +121,25 @@ For legacy table output, add ``--legacy`` to the end of the command above
 (Also, to log which sequences failed to align, add LOG at the very end of both ninja_filter and ninja_parse_filtered)
 
 
-Contact
+###Building a database
+You can build your own marker gene database for use with NINJA-OPS. To do so, you must compile ninja_build in the directory "optional (to generate your own DBs)". 
+The format of the input FASTA file must respect the formatting considerations outlined in formats_readme.txt in the root directory of NINJA-OPS. 
+Once compiled, run ninja_prep in the following way: 
+
+ninja_prep in_refs.fa out_preDB.fa DBNAME.db 
+
+To use the resulting concatesome with bowtie2, simply download bowtie2-build and run:
+
+bowtie2-build out_preDB.fa DBNAME
+
+You may now place the 6 files starting with the name DBNAME_, as well as DBNAME.db, into a a folder named DBNAME within the "databases" directory of NINJA-OPS. 
+Now NINJA-OPS may be invoked with custom database "DBNAME"
+
+
+###Contact
 ---
 
-Created by Gabe Al Ghalith, Emmanuel Montassier, Henry Ward, and Dan Knights in the Knights Lab at the University of Minnesota (algh0022@umn.edu). Questions, comments and concerns can also be directed to Dan Knights (dknights@umn.edu).
+Created by Gabe Al-Ghalith, Emmanuel Montassier, Henry Ward, and Dan Knights in the Knights Lab at the University of Minnesota (algh0022@umn.edu). Questions, comments and concerns can also be directed to Dan Knights (dknights@umn.edu).
 
 
 Licensing
