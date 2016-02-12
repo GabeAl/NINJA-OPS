@@ -15,6 +15,10 @@ Moreover, NINJA is entirely free and open source.
 The latest NINJA version can always be found on Github (https://github.com/GabeAl/NINJA-OPS) or at http://ninja-ops.ninja.
 
 
+##Citing NINJA-OPS
+Al-Ghalith GA, Montassier E, Ward HN, Knights D. NINJA-OPS: Fast Accurate Marker Gene Alignment Using Concatenated Ribosomes. PLoS Computational Biology. 2016 Jan;12(1).
+
+
 ##Version
 ---
 1.3 (January 29, 2016)  
