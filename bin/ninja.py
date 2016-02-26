@@ -7,7 +7,7 @@ import subprocess
 from subprocess import Popen, PIPE
 import sys
 import shutil
-__version__ = "Ninja 1.3.1"
+__version__ = "Ninja 1.3.2"
 
 ###
 #   CLASSES
@@ -101,7 +101,7 @@ def get_args(p):
                           " Aggressive denoising = 6 (nearly guaranteed to eliminate all sequencing error - although not PCR error - in most data sets) (default 2)")
     p.add_argument("-F", "--full_output",
                    action = 'store_true',
-                   help = "Output fasta files containing failed sequences and filtered sequences [default False]")
+                   help = "Output files listing failed sequences, filtered sequences, and sequence mappings [default False]")
     p.add_argument("-l", "--legacy",
                    action = 'store_true',
                    help = "Output legacy (tab-delimited) QIIME OTU table [default False]")
@@ -319,8 +319,8 @@ def bowtie2(bowtie2_cmd,filteredSeqsFile, filteredSeqsFile2, alignmentsFile, bow
       cmd.append('--maxins ' + str(insert))
       cmd.append('--no-mixed --no-discordant')
     cmd.append('-p ' + str(threads))
-    cmd.append('-k 1')
-
+    if mode != 'max':
+        cmd.append('-k 1')
     if mode == 'fast':
       cmd.append('--fast')
     elif mode == 'max':
