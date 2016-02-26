@@ -257,8 +257,8 @@ int main ( int argc, char *argv[] )
 	if (doLog) {
 		logFail = fopen(outLogF, "wb");
 		inDupes = fopen(inputDP,"rb");
-		//logPass = fopen(outLogP, "wb");
-		if (!logFail || !inDupes) { // || !logPass) 
+		logPass = fopen(outLogP, "wb");
+		if (!logFail || !inDupes || !logPass) {
 			puts("Couldn't create output logs."); 
 			puts("LOG is also required during filter with same prefix.");
 			exit(2); 
@@ -286,6 +286,7 @@ int main ( int argc, char *argv[] )
 			char *entry = AllSamps[z] - 1;
 			while (*++entry) if (*entry == '\t') *entry = '\n';
 		}
+		
 	}
 	//for (int i = 0; i < flines; ++i) fprintf(logFail,"%s",AllSamps[i]);
 	if (!ilines || (doTaxmap && !blines) || !slines) 
@@ -347,7 +348,16 @@ int main ( int argc, char *argv[] )
 			while (*++cix != '\n')
 			; continue; 
 		}
-
+		if (doLog) {
+			char *dupes = AllSamps[rix];
+			while (*dupes) {
+				char *begin = dupes;
+				while (*dupes != '\n') ++dupes;
+				*dupes = '\0';
+				fprintf(logPass,"%s\t%lu\n", begin,otuIX);
+				*dupes++ = '\t';
+			}
+		}
 #ifdef LOGMATCHES
 		fprintf(log,"%lu\t%lu\t%s\n", rix, OtuList[otuIX],!doTaxmap ? "" : *(OtuMap_taxa + uWBS(OtuMap_otus, *(OtuList + otuIX), blines))); //deleteme
 #endif
@@ -372,7 +382,7 @@ int main ( int argc, char *argv[] )
 #endif
 		while (*++cix != '\n');
 	}
-endGame:
+
 #ifdef PROFILE
 	printf("->Time for matrix generation: %f\n", ((double) (clock() - start)) / CLOCKS_PER_SEC); start = clock();
 #endif
