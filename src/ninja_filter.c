@@ -1321,8 +1321,16 @@ int main( int argc, char *argv[] ) {
 	free(smpSrt);
 	SmpDD = realloc(SmpDD,sizeof(char*)*x);
 	printf("%d Samples found.\n",x);
+	if (x == ns) {
+		puts("**************************************");
+		puts("*   WARNING!!  WARNING!! WARNING!!   *");
+		puts("*   No. of samples = no. of reads!   *");
+		puts("*   Casting number of samples to 1   *");
+		puts("**************************************");
+		x = 1, *SmpDD = "AllSamps";
+	}
 	fprintf(ofd, "%u\n", x);
-	for (k=0; k < x; ++k) fprintf(ofd,"%s\n",SmpDD[k]);
+	for (k=0; k < x; ++k) fprintf(ofd,"%s\n", SmpDD[k]);
 #ifdef PROFILE
 	printf("->Short read sample prep: %f\n", 
 		((double) (clock() - start)) / CLOCKS_PER_SEC); start = clock();
@@ -1386,7 +1394,7 @@ int main( int argc, char *argv[] ) {
 	unsigned prevIX, thisIX, lastLogged = 0;
 	for (k=1; k < ns; ++k) {
 		prevIX = SeqIX[k-1]; thisIX = SeqIX[k];
-		++Counts[crBST(Samples[prevIX],x-1,SmpDD)];
+		if (x==1) ++*Counts; else ++Counts[crBST(Samples[prevIX],x-1,SmpDD)];
 		if (cmpF(ReadsX[prevIX],ReadsX[thisIX],Sizes[prevIX], Sizes[thisIX])) {
 			//if (!read2Str || cmpF(ReadsX2[prevIX],ReadsX2[thisIX],Sizes2[prevIX],
 			//	Sizes2[thisIX])) 
@@ -1397,7 +1405,7 @@ int main( int argc, char *argv[] ) {
 		else { ++copies; ++dupes; }
 	}
 	prevIX = thisIX;
-	++Counts[crBST(Samples[prevIX],x-1,SmpDD)]; // add last count
+	if (x==1) ++*Counts; else ++Counts[crBST(Samples[prevIX],x-1,SmpDD)]; // add last count
 	WRITE_SUPPORTED_DUPE()
 	if (doLog) printf("Number of reads rejected = %llu, committed = %llu\n",
 		rejected, committed);
