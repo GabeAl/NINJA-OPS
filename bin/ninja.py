@@ -62,7 +62,7 @@ def get_args(p):
                    type = str,
                    default = 'greengenes97',
                    metavar = '',
-                   help = "Name of database folder in ninja top-level directory; folder must contain bowtie2 index with basename the same as the folder, a taxonomy file named basename.taxonomy, and a ninja db map (output from ninja_prep) named basename.db [default greengenes97]")
+                   help = "Name of database folder in ninja top-level directory; folder must contain bowtie2 index with basename the same as the folder, a taxonomy file named basename.taxonomy, and a ninja db map (output from ninja_prep) named basename.db [default %(default)s]")
     p.add_argument("-t", "--trim",
                    type = int,
                    default = -1,
@@ -77,7 +77,7 @@ def get_args(p):
                    type = float,
                    default = 0.97,
                    metavar = '',
-                   help = "Minimum percent similarity - id - between query sequence and reference sequence (default 97%%)")
+                   help = "Minimum percent similarity - id - between query sequence and reference sequence [default %(default)s]")
     p.add_argument("-I", "--insert",
                    type = int,
                    default = 1600,
@@ -87,7 +87,7 @@ def get_args(p):
                    type = int,
                    default = 4,
                    metavar = '',
-                   help = "Number of threads/cores to run bowtie2 on (default 4)")
+                   help = "Number of threads/cores to run bowtie2 on [default %(default)s]")
     p.add_argument("-m", "--mode",
                    type = str,
                    default = 'normal',
@@ -98,25 +98,25 @@ def get_args(p):
                    default = 1,
                    help = "Discards all reads that appear fewer than d times. No denoising = 1; " + \
                           " Moderate denoising = 2 (throws out all singleton reads;" + \
-                          " Aggressive denoising = 6 (nearly guaranteed to eliminate all sequencing error - although not PCR error - in most data sets) (default 2)")
+                          " Aggressive denoising = 6 (nearly guaranteed to eliminate all sequencing error - although not PCR error - in most data sets) [default %(default)s]")
     p.add_argument("-F", "--full_output",
                    action = 'store_true',
-                   help = "Output files listing failed sequences, filtered sequences, and sequence mappings [default False]")
+                   help = "Output files listing failed sequences, filtered sequences, and sequence mappings [default %(default)s]")
     p.add_argument("-l", "--legacy",
                    action = 'store_true',
-                   help = "Output legacy (tab-delimited) QIIME OTU table [default False]")
+                   help = "Output legacy (tab-delimited) QIIME OTU table [default %(default)s]")
     p.add_argument("-P", "--print_only",
                    action = 'store_true',
-                   help = "Print commands only - do not run [default False]")
+                   help = "Print commands only - do not run [default %(default)s]")
     p.add_argument("-S", "--suppress_stdout",
                    action = 'store_true',
-                   help = "Suppress standard output [default False]")
+                   help = "Suppress standard output [default %(default)s]")
     p.add_argument("-R", "--retain_intermediates",
                    action = 'store_true',
-                   help = "Retain intermediate files [default False]")
+                   help = "Retain intermediate files [default %(default)s]")
     p.add_argument("-C", "--check_fasta",
                    action = 'store_true',
-                   help = "Check fasta for correct formatting; otherwise assumes fasta is in QIIME-ready format [default False]")
+                   help = "Check fasta for correct formatting; otherwise assumes fasta is in QIIME-ready format [default %(default)s]")
     p.add_argument("-r", "--reverse_complement",
                    action = 'store_true',
                    help = "Flags sequences for reverse complementing (default no reverse complement)")
