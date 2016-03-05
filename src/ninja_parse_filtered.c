@@ -354,7 +354,7 @@ int main ( int argc, char *argv[] )
 				char *begin = dupes;
 				while (*dupes != '\n') ++dupes;
 				*dupes = '\0';
-				fprintf(logPass,"%s\t%lu\n", begin,otuIX);
+				fprintf(logPass,"%s\t%lu\n", begin, OtuList[otuIX]);
 				*dupes++ = '\t';
 			}
 		}
