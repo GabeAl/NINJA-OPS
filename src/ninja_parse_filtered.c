@@ -2,14 +2,14 @@
    OTU table parser, mapper, generator. Uses B-W LF mapping search to
    quickly align each read to the appended DB of all OTU sequences.
    This program assumes the user or companion script has run bowtie2:
-   [bowtie2-build-s -o3 ninjaDB.fasta Ninja97] or use included DB
-   bowtie2-align-s --no-head --no-unal -o3 -p4 -f reads.fna -x Ninja97 -S align.txt
-   [--mp "1,1" --rdg "1,1" --rfg "1,1" --score-min "L,0,-.03" -k 1 --norc --fast]
+   [bowtie2-build-s ninjaDB.fasta Ninja97] or use included DBs
+   bowtie2-align-s --no-head --no-unal -p4 -f reads.fna -x greengenes97 -S align.sam
+   [--np 0 --mp "1,1" --rdg "0,1" --rfg "0,1" --score-min "L,0,-.03" -k 1 --norc]
    
    Compilation information (GCC):
-   Ascribes to std=gnu and doesn't require C99 support or UNIX intrinsics.
-   Use:     -m64 -Ofast -fwhole-program parse.c -fprofile-generate [-fprofile-use]
-   Profile: -m64 -Ofast -D PROFILE -flto parse.c
+   Ascribes to std=gnu89 and doesn't require C99 support or UNIX intrinsics.
+   Use:     -m64 -Ofast -fwhole-program parse.c 
+   Profile: -m64 -Ofast -D PROFILE -flto parse.c -fprofile-generate [-fprofile-use]
    Debug:   -m64 -D DEBUG -D PROFILE -ggdb
    More -D: LOGMATCHES (produces parseLog.txt and map_seqid_reps.txt)
 */
@@ -439,15 +439,17 @@ int main ( int argc, char *argv[] )
 				++pcnt;
 				if (doTaxmap) {
 					fprintf(ofp,"{\"taxonomy\":[");
-					char *taxon = *(OtuMap_taxa + uWBS(OtuMap_otus, *OtuP, blines)) - 2, *tP;
-					int i; for (i = 0; i < 6; i++) { // there are 6 ;'s to consider for 7 taxa
-						tP = taxon + 2;
-						while (*++taxon != ';')
-							; *taxon = '\0';
+					char *taxon = *(OtuMap_taxa + uWBS(OtuMap_otus, *OtuP, blines)), *tP = taxon;
+					for (;;) {
+						while (*taxon && *taxon != ';') ++taxon;
+						if (!*taxon) break;
+						*taxon = 0;
 						fprintf(ofp, "\"%s\", ", tP);
-						*taxon = ';';
+						*taxon++ = ';';       // delimiter exclusion
+						tP = taxon;
+						if (*tP == ' ') ++tP; // space exclusion
 					}
-					fprintf(ofp,"\"%s\"]}}", taxon + 2);
+					fprintf(ofp,"\"%s\"]}}", tP);
 				}
 				else fprintf(ofp,"null}");
 				fprintf(ofp,",");
