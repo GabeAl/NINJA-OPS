@@ -1,5 +1,6 @@
-Use ninja_prep on something like greengene's 97_otus_unal.fasta
+Use ninja_prep on a series of linear reference sequences with numerical headers (fasta format). 
+See main readme and formats_readme.txt in the root of NINJA-OPS as well as the built-in ninja_prep usage information.
 
-You can specify ranges, sorts, etc in the commandlines. In recent bowtie2, no tweaks seem to deliver better results than just passing the whole shebang through.
+You can specify ranges, sorts, etc in the commandlines. 
 
 Region trimming for V4 (EMP primers?) and V3 built-in for greengenes 13_8 97% only.
