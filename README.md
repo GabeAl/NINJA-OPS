@@ -21,6 +21,9 @@ Al-Ghalith GA, Montassier E, Ward HN, Knights D. NINJA-OPS: Fast Accurate Marker
 
 ##Version
 ---
+1.4 (March 13, 2016)
+Updated readme, restructured file directory, included output OTU map in full output mode, rewrote ninja_prep for better database generation, chimera detection bugfixes
+
 1.3 (January 29, 2016)  
 Added explicit paired-end support, filter reasons to log file, streamlined BIOM format, improved Mac stability, alternative ambiguity handling schemes, updated commandline interface, and more.
 
@@ -37,8 +40,8 @@ Initial submitted version
 ---
 
 
-Python 2.7 for wrapper (no additional libraries, such as numpy, are necessary)  
 Bowtie2
+Python 2.7 for wrapper
 
 
 
@@ -132,6 +135,8 @@ To use the resulting concatesome with bowtie2, simply download bowtie2-build and
 
 bowtie2-build out_preDB.fa DBNAME
 
+To create a taxonomy, simply generate a tab-delimited text file with two columns, the first containing the OTU ids (sorted in descending order), and the second containing the taxonomy (in string form, semicolon-delimited) for each OTU. 
+
 You may now place the 6 files starting with the name DBNAME_, as well as DBNAME.db, into a a folder named DBNAME within the "databases" directory of NINJA-OPS. 
 Now NINJA-OPS may be invoked with custom database "DBNAME"
 
@@ -139,9 +144,10 @@ Now NINJA-OPS may be invoked with custom database "DBNAME"
 ###Contact
 ---
 
-Created by Gabe Al-Ghalith, Emmanuel Montassier, Henry Ward, and Dan Knights in the Knights Lab at the University of Minnesota (algh0022@umn.edu). Questions, comments and concerns can also be directed to Dan Knights (dknights@umn.edu).
+Created by Gabe Al-Ghalith (algh0022@umn.edu), Emmanuel Montassier, Henry Ward, and Dan Knights* (dknights@umn.edu) in the Knights Lab at the University of Minnesota.
 
 
 Licensing
 ---
 NINJA-OPS is licensed under the ISC license (included in package). Bowtie2 is distributed under the GPLv3 license. 
+

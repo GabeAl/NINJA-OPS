@@ -13,13 +13,7 @@ SEQUENCE2 WITHOUT LINE BREAKS
 [blank end line]
 
 Header formatting instructions -- DATABASE:
-Database headers must be positive integer numbers in the QIIME OTU format. String headers for database entries are not
-yet supported.
-For example:
->330201
-SEQUENCE WITHOUT LINE BREAKS
->291823
-SEQUENCE2 WITHOUT LINE BREAKS
+Database fasta file restrictions are less stringent. Try your file and report if it does not work.
 
 Header formatting instructions -- QUERIES/READS:
 Headers are formatted according to QIIME protocol. That is, minimally, in the format SAMPLENAME_SEQNUMBER [extra info].
@@ -27,3 +21,4 @@ For example, the first sequence header may look like the following:
 >100217.1246514_0 A222Y121112:1:1101:10003:15638/1 orig_bc=AAAAAAAAAAAA new_bc=AAAAAAAAAAAA bc_diffs=0
 where 100217.1246514 is a sample, and 0 is the index corresponding to the first read from the sequencing run.
 
+Other non-wrapped fasta files will work; however, the nubmer of samples may be cast to 1 if this header type is not used.
