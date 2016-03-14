@@ -7,7 +7,7 @@ import subprocess
 from subprocess import Popen, PIPE
 import sys
 import shutil
-__version__ = "Ninja 1.3.2"
+__version__ = "1.4"
 
 ###
 #   CLASSES
@@ -80,9 +80,9 @@ def get_args(p):
                    help = "Minimum percent similarity - id - between query sequence and reference sequence [default %(default)s]")
     p.add_argument("-I", "--insert",
                    type = int,
-                   default = 1600,
+                   default = 1400,
                    metavar = '',
-                   help = "Maximum total length for paired-end matches. Set this as small as possible (e.g. 400 for 515F-806R primers) (default 1600, for 16S)")
+                   help = "Maximum total length for paired-end matches. Set this as small as possible (e.g. 400 for 515F-806R primers) [default %(default)s, for 16S]")
     p.add_argument("-p", "--threads",
                    type = int,
                    default = 4,
@@ -94,10 +94,10 @@ def get_args(p):
                    metavar = '',
                    help = "NINJA sensitivity mode: 'normal' (default), 'fast' (less sensitive), or 'max' (more sensitive, slower)")
     p.add_argument("-d", "--denoising",
-                   type = int,
+                   type = float,
                    default = 1,
-                   help = "Discards all reads that appear fewer than d times. No denoising = 1; " + \
-                          " Moderate denoising = 2 (throws out all singleton reads;" + \
+                   help = "Discards all reads that appear fewer than d times. No denoising/compaction = 0; " + \
+						  " Read compaction = 1 (maps shorter reads to longer neighbor), Moderate denoising = 2 (throws out all singleton reads);" + \
                           " Aggressive denoising = 6 (nearly guaranteed to eliminate all sequencing error - although not PCR error - in most data sets) [default %(default)s]")
     p.add_argument("-F", "--full_output",
                    action = 'store_true',
@@ -231,7 +231,7 @@ def complement(seq):
 # OPTIONAL  trim:                   trims sequences to <= uniform X bp (e.g. AGGC, GCG with trim 2 returns AG, GC)
 #           RC:                     takes reverse complement of input sequences
 #           denoising:              for argument x.y, discards all reads that appear less than x times and all kmers that
-#                                   appear less than y times unless kmers in reads that appear more than x times
+#                                   appear less than y*1000 times (unless that read appears more than x times)
 def ninja_filter(inputSeqsFile, inputSeqsFile2, file_prefix, trim, trim2, RC, denoising, logger, full_output=False,
                 run_with_shell=True, print_only=False):
 
@@ -412,7 +412,7 @@ def main(argparser):
     # First stores original console location as a variable for error handling
     ninjaLog = os.path.join(args['output'], "ninja_log.txt")
     logger = Logger(ninjaLog, not args['suppress_stdout'])
-    logger.log(__version__)
+    logger.log("NINJA-OPS v" + __version__)
 
     check_args(args, argparser)
 
@@ -514,7 +514,7 @@ def main(argparser):
         run_with_shell=run_with_shell, print_only=args['print_only'])
     )
     logger.log("Ninja filter time: " + str(t1.timeit(1)))
-    logger.log("Running Bowtie...")
+    logger.log("Running Bowtie2...")
     t2 = timeit.Timer(lambda:
       bowtie2(bowtie2_cmd,file_prefix + "_filt.fa", pe_file, alignmentsFile, bowtieDatabase, similarity, args['insert'], threads, mode,
         logger, run_with_shell=run_with_shell, print_only=args['print_only'])
@@ -537,7 +537,7 @@ def main(argparser):
 #   -i "seqs.fna" -o "output" -r -t 200 -mo 'max' -s 98 -d 1.005 -q
 if __name__=='__main__':
     # Parses command line arguments
-    p = argparse.ArgumentParser(description = "NINJA-OPS: NINJA Is Not Just Another OTU Picking Solution (v1.1)\n" + \
+    p = argparse.ArgumentParser(description = "NINJA-OPS: NINJA Is Not Just Another OTU Picking Solution (v" + __version__ +")\n" + \
                                               "Knights Lab (www.ninja-ops.ninja)\n" + \
                                               "This program outputs an otu table and map from sequence reads in fasta format.", 
                                 add_help = True, 
