@@ -125,7 +125,7 @@ For legacy table output, add ``--legacy`` to the end of the command above
 
 
 ###Building a database
-You can build your own marker gene database for use with NINJA-OPS. To do so, you must compile ninja_build in the directory "optional (to generate your own DBs)". 
+You can build your own marker gene database for use with NINJA-OPS. To do so, use ninja_prep in the /bin directory. 
 The format of the input FASTA file must respect the formatting considerations outlined in formats_readme.txt in the root directory of NINJA-OPS. 
 Once compiled, run ninja_prep in the following way: 
 
