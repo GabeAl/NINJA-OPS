@@ -7,7 +7,7 @@ import subprocess
 from subprocess import Popen, PIPE
 import sys
 import shutil
-__version__ = "1.4"
+__version__ = "1.4.1"
 
 ###
 #   CLASSES
@@ -77,7 +77,7 @@ def get_args(p):
                    type = float,
                    default = 0.97,
                    metavar = '',
-                   help = "Minimum percent similarity - id - between query sequence and reference sequence [default %(default)s]")
+                   help = "Minimum fractional similarity - id - between query sequence and reference sequence [default %(default)s]")
     p.add_argument("-I", "--insert",
                    type = int,
                    default = 1400,
@@ -288,7 +288,7 @@ def ninja_filter(inputSeqsFile, inputSeqsFile2, file_prefix, trim, trim2, RC, de
 # OUTPUT    alignmentsFile:     main output of bowtie
 # OPTIONAL  mode:               'ninja' or 'ninjaMax', for less and more sensitivity, respectively
 #           threads:            number of threads/cores to run bowtie2 on
-#           similarity:         minimum percent similarity between query sequence and reference sequence
+#           similarity:         minimum fractional similarity between query sequence and reference sequence
 def bowtie2(bowtie2_cmd,filteredSeqsFile, filteredSeqsFile2, alignmentsFile, bowtieDatabase, similarity, insert, threads, mode,
             logger, run_with_shell=True, print_only=False):
 
@@ -296,7 +296,7 @@ def bowtie2(bowtie2_cmd,filteredSeqsFile, filteredSeqsFile2, alignmentsFile, bow
 
     # Checks if similarity is a percentage
     if similarity > 1 or similarity < 0:
-        raise ValueError("Similarity error. Enter similarity as a percentage between 0 and 100. Exiting.")
+        raise ValueError("Similarity error. Enter similarity as a decimal between 0 and 1. Exiting.")
 
     similarity = 1 - similarity     # Converts to similarity readable by bowtie2
 
