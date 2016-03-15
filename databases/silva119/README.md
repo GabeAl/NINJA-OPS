@@ -11,7 +11,7 @@ $ unzip Silva_119_provisional_release.zip
 
 Index database:
 
-$ ninja_prep_linux --no-spacers Silva119_release/rep_set/97/Silva_119_rep_set97.fna silva119_prep.fa silva119.db
+$ ninja_prep_linux Silva119_release/rep_set/97/Silva_119_rep_set97.fna silva119_prep.fa silva119.db --no-spacers 
 $ bowtie2-build silva119_prep.fa silva119
 
 Sort and move the taxonomy to working folder:
