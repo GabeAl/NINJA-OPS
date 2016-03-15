@@ -119,7 +119,10 @@ def get_args(p):
                    help = "Check fasta for correct formatting; otherwise assumes fasta is in QIIME-ready format [default %(default)s]")
     p.add_argument("-r", "--reverse_complement",
                    action = 'store_true',
-                   help = "Flags sequences for reverse complementing (default no reverse complement)")
+                   help = "Reverses all sequence orientations [default %(default)s]")
+    p.add_argument("-z", "--both_strands",
+                   action = 'store_true',
+                   help = "Forces both read orientations to be considered (slower, not recommended) [default %(default)s]")
 
     args = p.parse_args()
     return args
@@ -289,8 +292,9 @@ def ninja_filter(inputSeqsFile, inputSeqsFile2, file_prefix, trim, trim2, RC, de
 # OPTIONAL  mode:               'ninja' or 'ninjaMax', for less and more sensitivity, respectively
 #           threads:            number of threads/cores to run bowtie2 on
 #           similarity:         minimum fractional similarity between query sequence and reference sequence
+#           both_strands:       forces the aligner (bowtie2) to use both orientations (forward,reverse) for matching
 def bowtie2(bowtie2_cmd,filteredSeqsFile, filteredSeqsFile2, alignmentsFile, bowtieDatabase, similarity, insert, threads, mode,
-            logger, run_with_shell=True, print_only=False):
+            logger, both_strands, run_with_shell=True, print_only=False):
 
     # TODO: Automatically convert fasta file if formatted incorrectly
 
@@ -310,7 +314,8 @@ def bowtie2(bowtie2_cmd,filteredSeqsFile, filteredSeqsFile2, alignmentsFile, bow
     cmd.append('--rdg "0,1"')
     cmd.append('--rfg "0,1"')
     cmd.append('--score-min "L,0,-' + str(similarity) + '"')
-    cmd.append('--norc')
+    if not both_strands: 
+      cmd.append('--norc')
     if filteredSeqsFile2 is None:
       cmd.append('-f ' + '"'+ filteredSeqsFile + '"')
     else:
@@ -517,7 +522,7 @@ def main(argparser):
     logger.log("Running Bowtie2...")
     t2 = timeit.Timer(lambda:
       bowtie2(bowtie2_cmd,file_prefix + "_filt.fa", pe_file, alignmentsFile, bowtieDatabase, similarity, args['insert'], threads, mode,
-        logger, run_with_shell=run_with_shell, print_only=args['print_only'])
+        logger, both_strands=args['both_strands'], run_with_shell=run_with_shell, print_only=args['print_only'])
     )
     logger.log("Bowtie time: " + str(t2.timeit(1)))
     logger.log("Running Ninja parse...")
@@ -533,8 +538,8 @@ def main(argparser):
 # Wrapper for main function, called from command line
 # Bare minimum args:
 #   -i "seqs.fna" 
-# Sample maximum args:
-#   -i "seqs.fna" -o "output" -r -t 200 -mo 'max' -s 98 -d 1.005 -q
+# Sample maximum args (note that reverse complmenting changes ALL read orientation):
+#   -i "seqs.fna" -o "output" -r -t 200 -mo 'max' -s 0.98 -d 1.005 -q
 if __name__=='__main__':
     # Parses command line arguments
     p = argparse.ArgumentParser(description = "NINJA-OPS: NINJA Is Not Just Another OTU Picking Solution (v" + __version__ +")\n" + \
