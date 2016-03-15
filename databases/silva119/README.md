@@ -14,6 +14,6 @@ Index database:
 $ ninja_prep_linux Silva119_release/rep_set/97/Silva_119_rep_set97.fna silva119_prep.fa silva119.db --no-spacers 
 $ bowtie2-build silva119_prep.fa silva119
 
-Sort and move the taxonomy to working folder:
+Move the taxonomy to working folder:
 
-$ sort -k5,5rn Silva119_release/taxonomy/97/taxonomy_97_7_levels.txt > silva119.taxonomy
+$ mv Silva119_release/taxonomy/97/taxonomy_97_7_levels.txt silva119.taxonomy
