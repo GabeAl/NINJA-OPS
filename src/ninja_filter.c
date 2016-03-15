@@ -26,7 +26,7 @@
 #ifdef USE_QSORT
 	#include "qsort.h"
 #endif
-#define NINJA_VER "1.4.0"
+#define NINJA_VER "1.4.1"
 #define PRINT_USAGE() \
 {\
 	printf( "\nNINJA Is Not Just Another - OTU Picking Solution v" NINJA_VER "\n");\
@@ -40,7 +40,7 @@
 	printf( "out_PREFIX: prefix for all output files produced\n");\
 	printf( "<trim[,trim2]> (optional): the number of bases to keep (comma for R2)\n");\
 	printf( "[RC] (optional): Reverse-complement input sequences\n");\
-	printf( "[D] <x.y> (optional): Denoise [duplicates x, kmer duplicates/100 y]\n");\
+	printf( "[D] <x.y> (optional): Denoise [duplicates x, kmer duplicates/1000 y]\n");\
 	printf( "Note: using .y discards reads with k-mers < y*1000 duplicates.\n");\
 	printf( "[CN] (optional): Convert ambigous bases to A's instead of discarding them\n"); \
 	printf( "[LOG] (optional): Outputs which sequences were filtered out\n"); \
@@ -894,7 +894,7 @@ int main( int argc, char *argv[] ) {
 		while (*src != '_' && *src != ' ' && *src != '\n') ++src; 
 		if (doLog) { // also trace until whitespace for sample id
 			char *seqID = src;
-			while (*seqID != ' ' && *seqID != '\n') ++seqID;
+			while (*seqID != ' ' && *seqID != '\n' && *seqID != '\r') ++seqID;
 			SeqIDs[ns] = malloc(seqID - src + 1);
 			if (!SeqIDs[ns]) {puts("Out of memory for SeqIDs"); exit(3);}
 			char *d = SeqIDs[ns];
