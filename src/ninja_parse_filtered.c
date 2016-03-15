@@ -23,7 +23,7 @@
 #include <math.h>
 #include <string.h>
 #include <time.h>
-#define NINJA_VER "1.4.0"
+#define NINJA_VER "1.4.1"
 #ifndef CHTOL
 	#define CHTOL 0
 #endif
@@ -148,7 +148,7 @@ unsigned long parse_str_lu_map(FILE * fp, char delim, char *** Col1, unsigned lo
 			memset(bufp,'\0',1);
 			if (!which) *Col2p++ = (unsigned long)atol(buffer);
 			else {
-				if (bufp[-1]=='\r') memset(bufp-1,'\0',1);
+				if (*(bufp-1)=='\r') memset(bufp-1,'\0',1);
 				int amt; *Col1p = malloc(amt = strlen(buffer)+1);
 				if (!*Col1p) return 0; 
 				strncpy(*Col1p++, buffer, amt);
@@ -184,13 +184,13 @@ unsigned long parse_str_str_map(FILE * fp, char delim, char *** Col1, char *** C
 		if (c=='\n' || c==delim) { // commit, switch buffer pointer
 			memset(bufp,'\0',1);
 			if (!which) {
-				if (bufp[-1]=='\r') memset(bufp-1,'\0',1);
+				if (*(bufp-1)=='\r') memset(bufp-1,'\0',1);
 				int amt; *Col1p = malloc(amt = strlen(buffer)+1);
 				if (!*Col1p) return 0; 
 				strncpy(*Col1p++, buffer, amt);
 			}
 			else {
-				if (bufp[-1]=='\r') memset(bufp-1,'\0',1);
+				if (*(bufp-1)=='\r') memset(bufp-1,'\0',1);
 				int amt; *Col2p = malloc(amt = strlen(buffer)+1);
 				if (!*Col2p) return 0; 
 				strncpy(*Col2p++, buffer, amt);
@@ -622,6 +622,7 @@ int main ( int argc, char *argv[] )
 				fprintf(logMap,"%s\t",queries[i]);
 			else fprintf(logMap,"\n%s\t%s\t",(lastRef = refs[i]),queries[i]);
 		}
+		fputc('\n',logMap);
 	}
 #ifdef PROFILE
 	printf("->Time for filtering and table write: %f\n", ((double) (clock() - start)) / CLOCKS_PER_SEC); start = clock();
