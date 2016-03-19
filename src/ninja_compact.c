@@ -1,12 +1,30 @@
-#define _FILE_OFFSET_BITS 64
+/* NINJA-OPS: NINJA Is Not Just Another - OTU Picking Solution
+   Lossless OTU id compaction program (reference post-clustering)
+   http://ninja-ops.ninja
+   This program merges tied alignments into a single arbitrary OTU.
+   
+   Compilation information (GCC):
+   Ascribes to std=gnu99 multi-platform
+   Flags: -m64 -O3 -ffast-math -std=gnu99 -fwhole-program ninja_compact.c
+   
+   This program assumes the user or wrapper script has run an aligner (bowtie2):
+   bowtie2-align-s --no-head -p4 -f reads.fna -x greengenes97 -S align.sam
+   [--np 0 --mp "1,1" --rdg "0,1" --rfg "0,1" --score-min "L,0,-.03" -k 1 --norc]
+   
+   Compilation information/directives (GCC):
+   Use:     -m64 -Ofast -fwhole-program parse.c 
+   Debug:   -m64 -D DEBUG -D PROFILE -ggdb
+*/
 #include <stdlib.h>
 #include <stdio.h>
 #include <inttypes.h>
 #include <string.h>
 #define LINELEN 1000000
+#define NINJA_VER "1.5.0"
 #define PRINT_USAGE() { \
-	printf( "\nNINJA-OPS Coelescescence. v1.5.0a\n"); \
-	printf( "Usage: ninja_coelescescence in_aligns.sam in_concatesome.fa out_newAligns.sam\n");\
+	printf( "\nNINJA Is Not Just Another - OTU Picking Solution v" NINJA_VER "\n");\
+	printf( "Post-alignment OTU label compaction program. Usage:\n");\
+	printf( "ninja_compact in_aligns.sam in_concatesome.fa out_newAligns.sam\n");\
 	exit(1);\
 }
 #ifndef min 
@@ -125,22 +143,18 @@ int main( int argc, char *argv[] )
 	fclose(db);
 	
 	//construct refs
-	char **Refs = malloc(ns*sizeof(*Refs)), 
-		***RefsP = malloc(ns*sizeof(*RefsP));
+	char **Refs = malloc(ns*sizeof(*Refs));
 	for (size_t i = 0; i < ns; ++i) {
 		Refs[i] = malloc(Sam_lens[i]+1);
 		Refs[i] = strncpy(Refs[i],db_seq+Sam_ptrs[i],Sam_lens[i]);
 		Refs[i][Sam_lens[i]] = 0;
-		RefsP[i] = Refs + i;
-		//fprintf(out,"%llu: %s\n",Sam_ptrs[i],Refs[i]);
 	}
-	free(db_txt);
+	free(db_txt); free(Sam_lens);
+	char ***RefsP = malloc(ns*sizeof(*RefsP));
+	for (size_t i = 0; i < ns; ++i) RefsP[i] = Refs + i;
 	twrqs(RefsP,ns,0);
-	//for (size_t i = 0; i < ns; ++i) fprintf(out,"%llu: %s\n",Sam_ptrs[RefsP[i]-Refs],*RefsP[i]);
-	for (size_t i = 1; i < ns; ++i) {
+	for (size_t i = 1; i < ns; ++i) // id bubbling
 		if (!ycmp(*RefsP[i-1],*RefsP[i])) Sam_ptrs[RefsP[i]-Refs] = Sam_ptrs[RefsP[i-1]-Refs];
-	}
-	//for (size_t i = 0; i < ns; ++i) fprintf(out,"%llu: %s\n",Sam_ptrs[RefsP[i]-Refs],*RefsP[i]);
 	
 	// Reparse and replace
 	rewind(in); ns = 0;
@@ -152,12 +166,12 @@ int main( int argc, char *argv[] )
 			continue; 
 		}
 		*line = 0;
-		//fputs(begin,out); //line till here
 		fprintf(out,"%s%llu",begin,Sam_ptrs[ns]);
 		while (tabs < 4) if (*++line=='\t') ++tabs; // at seq
 		fputs(line,out);
 		++ns;
 	}
-	free(lineO);
+	//free(lineO); free(Refs); free(RefsP); free(Sam_ptrs);
+	puts("Done.");
 	return 0;
 }
