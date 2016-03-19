@@ -6,6 +6,7 @@ import os
 import subprocess
 from subprocess import Popen, PIPE
 import sys
+import gzip
 import shutil
 __version__ = "1.4.1"
 
@@ -90,15 +91,18 @@ def get_args(p):
                    help = "Number of threads/cores to run bowtie2 on [default %(default)s]")
     p.add_argument("-m", "--mode",
                    type = str,
-                   default = 'normal',
+                   default = 'max',
                    metavar = '',
-                   help = "NINJA sensitivity mode: 'normal' (default), 'fast' (less sensitive), or 'max' (more sensitive, slower)")
+                   help = "NINJA sensitivity mode: 'normal' (medium sensitivity), 'fast' (less sensitive), or 'max' (default; more sensitive, slower)")
     p.add_argument("-d", "--denoising",
                    type = float,
                    default = 1,
                    help = "Discards all reads that appear fewer than d times. No denoising/compaction = 0; " + \
 						  " Read compaction = 1 (maps shorter reads to longer neighbor), Moderate denoising = 2 (throws out all singleton reads);" + \
                           " Aggressive denoising = 6 (nearly guaranteed to eliminate all sequencing error - although not PCR error - in most data sets) [default %(default)s]")
+    p.add_argument("-K", "--suppress_OTU_compaction",
+                   action = 'store_true',
+                   help = "Keeps all reported OTUs with random breaking of ties. This will produce many more OTUs but will more accurately represent the distribution of \"potential\" OTUs in the data. [default: break ties deterministically]")
     p.add_argument("-F", "--full_output",
                    action = 'store_true',
                    help = "Output files listing failed sequences, filtered sequences, and sequence mappings [default %(default)s]")
@@ -165,6 +169,14 @@ def check_fasta(f, logger):
                 return False
         lineNumber += 1
     return True
+
+# Decompresses gzipped file
+def gunzip(filepath):
+  out_filepath = filepath[0:filepath.index('.gz')]
+  with open(out_filepath, 'wb') as f_out, gzip.open(filepath, 'rb') as f_in:
+    # for line in f_in:
+      # f_out.write(line + '\n')
+    shutil.copyfileobj(f_in, f_out)
 
 # Generator for fasta files - returns [(name, seq)]
 # Call using 'with open(file) as f'
@@ -343,6 +355,48 @@ def bowtie2(bowtie2_cmd,filteredSeqsFile, filteredSeqsFile2, alignmentsFile, bow
         raise ValueError("ERROR: Bowtie2 failed. Exiting.")
     return cmd
 
+# Runs ninja_compact.
+# PARAMS
+#   alignmentsFile:   alignment file output from bowtie2
+#   masterDBFile:     master db file packaged with ninja
+#   alignmentsFileCompacted:  compacted alignment file output path from
+#                             ninja_compact. optional: default is to move
+#                             alignmentsFile to alignmentsFile_uncompacted.txt
+#                                       
+def ninja_compact(alignmentsFile, masterFastaFile, logger, alignmentsFileCompacted=None, run_with_shell=True, print_only=False):
+
+  # move alignmentsFile if explicit new alignmentsFileCompacted not provided
+  if alignmentsFileCompacted is None:
+      alignmentsFileCompacted = alignmentsFile
+      alignmentsFile = os.path.splitext(alignmentsFile)[0]+'_uncompacted.txt'
+      shutil.move(alignmentsFileCompacted, alignmentsFile)
+
+  # Sets the relevant binaries for mac and windows support.
+  ninjaDirectory = os.path.abspath(os.path.dirname(os.path.realpath(__file__)))
+  ninjaDirectory = os.path.abspath(os.path.join(ninjaDirectory, os.pardir))
+  if sys.platform.startswith("darwin") or sys.platform.startswith("os"):      # Mac
+    ninjaCompactFile = os.path.join(ninjaDirectory, os.path.join("bin", "ninja_compact_mac"))
+  elif sys.platform.startswith("win32") or sys.platform.startswith("cygwin"):   # Windows and cygwin
+    ninjaCompactFile = os.path.join(ninjaDirectory, os.path.join("bin", "ninja_compact.exe"))
+  else:   # Linux
+      ninjaCompactFile = os.path.join(ninjaDirectory, os.path.join("bin", "ninja_compact_linux"))
+            
+  cmd = ['"' + ninjaCompactFile + '"', 
+         '"' + alignmentsFile + '"',
+         '"' + masterFastaFile + '"',
+         '"' + alignmentsFileCompacted + '"']
+  cmd = ' '.join(cmd)
+  logger.log(cmd)
+  if not print_only:
+    proc = Popen(cmd,shell=run_with_shell,universal_newlines=True,stdout=PIPE,stderr=PIPE)
+    stdout, stderr = proc.communicate()
+    logger.log(stdout)
+    if proc.returncode != 0:
+      logger.log(stderr + '\n')
+      raise ValueError("ERROR: Read compaction failed for unknown reason. Exiting.")
+  return cmd
+
+
 # Runs ninja_parse_filtered.
 # INPUT     seqsDBFile:       db file output from ninja_filter
 #           alignmentsFile:   alignment file output from bowtie2
@@ -387,20 +441,12 @@ def ninja_parse(file_prefix, alignmentsFile, masterDBFile, taxMapFile, full_outp
 #           seqsDBFile:         db file output from ninja_filter
 #           alignmentsFile:     main output of bowtie2
 #           parseLogFile:       parse log generated from ninja_parse_filter
-def clean(inputSeqsFile, filteredSeqsFile, filteredSeqsFile2, seqsDBFile, alignmentsFile, dupes_file=None, parseLogFile=None):
-    try:
-        os.remove(filteredSeqsFile)
-        if filteredSeqsFile2 is not None:
-          os.remove(filteredSeqsFile2)
-        os.remove(seqsDBFile)
-        os.remove(alignmentsFile)
-        if dupes_file is not None:
-          os.remove(dupes_file)
-        if parseLogFile is not None:
-            os.remove(parseLogFile)
-            os.remove("map_seqid_reps.txt")
-
-    except OSError as e:
+def clean(files):
+  for f in files:
+    if f is not None:
+      try:
+        os.remove(f)
+      except OSError as e:
         myError = "INTERNAL ERROR: Can't find all files marked for moving and/or deletion. Check working directory and output folder."
         logger.log(myError)
         raise ValueError(myError)
@@ -501,39 +547,58 @@ def main(argparser):
     # Bowtie2 files
     alignmentsFile = os.path.join(outdir, "alignments.txt")
     databasedir = os.path.join(ninjaDirectory, 'databases', args['database'])
-    logger.log('Ninja database directory is is' + databasedir)
+    logger.log('NINJA-OPS database directory is ' + databasedir)
 
     masterDBFile = os.path.abspath(os.path.join(databasedir, args['database'] + ".db"))
+    masterFastaFile = os.path.abspath(os.path.join(databasedir, args['database'] + ".fa"))
     bowtieDatabase = os.path.abspath(os.path.join(databasedir, args['database']))
-        # Ninja_parse files
+
+    # Ninja_parse files
     taxMapFile = os.path.abspath(os.path.join(databasedir, args['database'] + ".taxonomy"))
     otuTableFile = os.path.join(outdir, "otutable.biom")
-        # Post-processing files
+    # Post-processing files
     seqOutFile = os.path.join(outdir, "failed_sequences.fna")
     mapOutFile = os.path.join(outdir, "otu_map.txt")
 
+    # Ensure that database fasta has been gunzipped
+    if not os.path.exists(masterFastaFile):
+      logger.log("Warning: This is the first time database " + args['database'] + " has been used. Decompressing concatesome fasta file...")
+      gunzip(masterFastaFile + ".gz")
+
     # Runs ninja_filter, bowtie2 and ninja_parse. Processes ninja results, generating OTU map and a list of failed seqs
-    logger.log("Running Ninja filter...")
+    logger.log("Running NINJA-OPS filter...")
     t1 = timeit.Timer(lambda:
       ninja_filter(args['input'], args['input2'], file_prefix, args['trim'], args['trim2'], RC, denoising, logger, full_output,
         run_with_shell=run_with_shell, print_only=args['print_only'])
     )
-    logger.log("Ninja filter time: " + str(t1.timeit(1)))
+    logger.log("NINJA-OPS filter time: " + str(t1.timeit(1)))
+
     logger.log("Running Bowtie2...")
     t2 = timeit.Timer(lambda:
       bowtie2(bowtie2_cmd,file_prefix + "_filt.fa", pe_file, alignmentsFile, bowtieDatabase, similarity, args['insert'], threads, mode,
         logger, both_strands=args['both_strands'], run_with_shell=run_with_shell, print_only=args['print_only'])
     )
     logger.log("Bowtie time: " + str(t2.timeit(1)))
-    logger.log("Running Ninja parse...")
+
+    if not args['suppress_OTU_compaction']:
+      logger.log("Running NINJA-OPS compact...")
+      t2 = timeit.Timer(lambda:
+        ninja_compact(alignmentsFile, masterFastaFile, logger, run_with_shell=run_with_shell, print_only=args['print_only'])
+      )
+      logger.log("NINJA-OPS compact time: " + str(t2.timeit(1)))
+
+    logger.log("Running NINJA-OPS parse...")
     t3 = timeit.Timer(lambda:
       ninja_parse(file_prefix, alignmentsFile, masterDBFile, taxMapFile, full_output, 
           logger, legacy_table, run_with_shell=run_with_shell, print_only=args['print_only'])
     )
-    logger.log("Ninja parse time: " + str(t3.timeit(1)) + "\n")
+    logger.log("NINJA-OPS parse time: " + str(t3.timeit(1)) + "\n")
 
     if not retain_intermediates:
-      clean(args['input'], file_prefix + "_filt.fa", pe_file, file_prefix + ".db", alignmentsFile)
+      to_remove = [args['input'], file_prefix + "_filt.fa", pe_file, file_prefix + ".db", alignmentsFile]
+      if not args['suppress_OTU_compaction']:
+        to_remove.append(os.path.splitext(alignmentsFile)[0]+'_uncompacted.txt')
+      clean(to_remove)
 
 # Wrapper for main function, called from command line
 # Bare minimum args:
