@@ -23,7 +23,7 @@
 #include <math.h>
 #include <string.h>
 #include <time.h>
-#define NINJA_VER "1.4.1"
+#define NINJA_VER "1.5.0"
 #ifndef CHTOL
 	#define CHTOL 0
 #endif
@@ -47,12 +47,7 @@
  *  Utility functions
  */
  
- // String comparison functions. The first returns -1, 0, and 1 only as <, ==, >
- // Second reports magnitude of difference from point of divergence
-inline int ycmp(st1p, st2p) register const char *st1p, *st2p; { 
-	while (*st1p && *st2p && *st1p++ == *st2p++); 
-	return *--st1p<*--st2p?-1:(*st1p>*st2p); 
-}
+ // String comparison
 inline int xcmp(str1, str2) register const char *str1, *str2; {
 	while (*str1 == *str2++) if (!*str1++) return 0; 
 	return (*(const unsigned char *)str1 - *(const unsigned char *)(str2 - 1));
@@ -70,43 +65,6 @@ inline size_t crBST(char *key, size_t sz, char **String) {
 	while (*ref_s == *key_s++) if (!*ref_s++) return p - String;
 	return -1;
 	//return p - String
-}
-
-// Resizes array without realloc: unsigned (top) and string (bottom)
-inline int res_unsigned_arr(unsigned **arr, unsigned oldS, unsigned newS) {
-	unsigned *newArray = malloc(newS * sizeof(unsigned int)), 
-		*nap = newArray, *oap = *arr;
-	if (!newArray) { printf("Out of memory.\n"); return 0; }
-	int j=-1; while (++j<=oldS) *nap++ = *oap++;
-	unsigned * addr = *arr; free(*arr); 
-	return (*arr = newArray) - addr;
-}
-inline int res_str_arr(char ***arr, unsigned oldS, unsigned newS) {
-	char **newArray = malloc(newS * sizeof(char *)),
-		**nap = newArray, **oap = *arr;
-	if (!newArray) { printf("Out of memory.\n"); return 0; }
-	int j=-1; while (++j<=oldS) *nap++ = *oap++;
-	char ** addr = *arr; free(*arr); 
-	return (*arr = newArray) - addr;
-}
-
-// Bubbling comparison of characters
-int cmpS(const void *v1, const void *v2) {
-	const char i1 = **(const char **)v1;
-	const char i2 = **(const char **)v2;
-	return i1<i2?-1:(i1>i2);
-}
-// Bubbling comparison of integers
-int cpx(const void *v1, const void *v2) {
-	const int i1 = *(const int *)v1;
-	const int i2 = *(const int *)v2;
-	return i1<i2?-1:(i1 > i2);
-}
-// Wrapper for xcmp
-int cmp(const void *v1, const void *v2) {
-	const char *i1 = **(const char ***)v1;
-	const char *i2 = **(const char ***)v2;
-	return xcmp(i1,i2);
 }
 
 // Wide binary search: uncovers range of result rather than single result
@@ -600,7 +558,8 @@ int main ( int argc, char *argv[] )
 	}
 	if (doLog) {
 		fclose(logPass); fclose(logFail);
-		free(OtuMap_otus); free(OtuMap_taxa); free(OtuTable);
+		if (doTaxmap) free(OtuMap_otus), free(OtuMap_taxa);
+		free(OtuTable);
 		logPass = fopen(outLogP, "rb");
 		char **queriesPre, **refsPre;
 		unsigned long xlines = 
