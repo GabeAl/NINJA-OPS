@@ -142,7 +142,7 @@ This produces a concatesome FASTA called ```greengenes99.fa``` and a NINJA-OPS d
 
 To include taxonomic annotation in your OTU tables, create a tab-delimited text file with two columns, the first containing the OTU ids, and the second containing the corresponding taxonomy in string form. The taxonomy should be semicolon-delimited if compartments are desired in BIOM format. No sorting is required as of v1.4. The taxonomy file should named ```greengenes99.taxonomy```. The taxonomy file is optional.
 
-You may now place all files starting with the name ```greengenes99``` (or whatever your database name is) except for the concatesome file into a folder named DBNAME within the "databases" directory of NINJA-OPS. You may delete the concatesome file. The folder should contain (with the ```.taxonomy``` file optional):
+You may now place all files starting with the name ```greengenes99``` (or whatever your database name is) except for the concatesome file into a folder named ```greengenes99``` within the "databases" directory of NINJA-OPS. You may delete the concatesome file. The folder should contain (with the ```.taxonomy``` file optional):
 
 ```
 greengenes99.1.bt2
