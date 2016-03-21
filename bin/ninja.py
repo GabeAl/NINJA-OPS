@@ -408,7 +408,9 @@ def ninja_parse(file_prefix, alignmentsFile, masterDBFile, taxMapFile, full_outp
   else:   # Linux
       ninjaParseFile = os.path.join(ninjaDirectory, os.path.join("bin", "ninja_parse_filtered_linux"))
             
-  cmd = ['"' + ninjaParseFile + '"', '"' + file_prefix + '"', '"' + alignmentsFile + '"', '"' + masterDBFile + '"' , '"' + taxMapFile + '"' ]
+  cmd = ['"' + ninjaParseFile + '"', '"' + file_prefix + '"', '"' + alignmentsFile + '"', '"' + masterDBFile + '"']
+  if taxMapFile is not None:
+    cmd.append('"' + taxMapFile + '"')
   if legacy_table:
     cmd.append('--legacy')
   if full_output:
@@ -546,6 +548,9 @@ def main(argparser):
 
     # Ninja_parse files
     taxMapFile = os.path.abspath(os.path.join(databasedir, args['database'] + ".taxonomy"))
+    if not os.path.exists(taxMapFile):
+      taxMapFile = None
+
     otuTableFile = os.path.join(outdir, "otutable.biom")
     # Post-processing files
     seqOutFile = os.path.join(outdir, "failed_sequences.fna")
