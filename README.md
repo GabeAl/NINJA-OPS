@@ -109,7 +109,7 @@ NOTE: When using Bowtie2, you must point Bowtie2 to the database files by prefix
 0. (Optional if bowtie2 is included in this package) Ensure bowtie2 is installed and working with the included Ninja97 DB.
 1. (Optional) Compile the c files with gcc. E.g. (you may have to replace * with each real ninja c filename):  
 	```gcc -m64 -std=gnu99 -O3 ninja_*.c -o ninja_*```
-1b. OR use the included binaries
+(OR use the included binaries)
 2. Run ninja_filter on your raw fasta reads. E.g. for an input "seqs.fna":  
 	```./ninja_filter seqs.fna my_prefix```
 You can include e.g, "170 RC" after that to trim at 170 bases and perform reverse complementing (doing it here is much faster than elsewhere).  
