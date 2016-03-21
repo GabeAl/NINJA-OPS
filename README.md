@@ -21,7 +21,7 @@ Al-Ghalith GA, Montassier E, Ward HN, Knights D. NINJA-OPS: Fast Accurate Marker
 
 ##Version
 ---
-1.5 (March 20, 206)
+1.5 (March 20, 2016)
 New OTU compaction step using compressed concatesome (compressasome), enabled by default in wrapper. This pools tied OTU assignments into a single arbitrary OTU ID instead of maintaining a distribution across equally-likely OTU candidates. Additionally, NINJA-OPS -m max (NINJA-MAX) settings are now the default speed settings. 
 
 1.4 (March 13, 2016)
