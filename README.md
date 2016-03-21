@@ -21,6 +21,9 @@ Al-Ghalith GA, Montassier E, Ward HN, Knights D. NINJA-OPS: Fast Accurate Marker
 
 ##Version
 ---
+1.5 (March 20, 206)
+New OTU compaction step using compressed concatesome (compressasome), enabled by default in wrapper. This pools tied OTU assignments into a single arbitrary OTU ID instead of maintaining a distribution across equally-likely OTU candidates. Additionally, NINJA-OPS -m max (NINJA-MAX) settings are now the default speed settings. 
+
 1.4 (March 13, 2016)
 Updated readme, restructured file directory, included output OTU map in full output mode, rewrote ninja_prep for better database generation, chimera detection bugfixes
 
@@ -41,6 +44,7 @@ Initial submitted version
 
 
 Bowtie2
+
 Python 2.7 for wrapper
 
 
@@ -104,7 +108,7 @@ NOTE: When using Bowtie2, you must point Bowtie2 to the database files by prefix
 
 0. (Optional if bowtie2 is included in this package) Ensure bowtie2 is installed and working with the included Ninja97 DB.
 1. (Optional) Compile the c files with gcc. E.g. (you may have to replace * with each real ninja c filename):  
-	```gcc -m64 -O3 -flto ninja_*.c -o ninja_*```
+	```gcc -m64 -std=gnu99 -O3 ninja_*.c -o ninja_*```
 1b. OR use the included binaries
 2. Run ninja_filter on your raw fasta reads. E.g. for an input "seqs.fna":  
 	```./ninja_filter seqs.fna my_prefix```
@@ -115,10 +119,13 @@ You can append D X.Y to the NINJA_filter commandline, where X is whole read (dup
 	
 For presets instead, specify e.g. ```--preset fast```
 
-or ninjaMAX instead, use this combo: ```--no-head -x Ninja97 -S outTrial.txt --np 0 --mp "1,1" --rdg "0,1" --rfg "0,1" --score-min "L,0,-0.03" --norc -p 4 -f filtered.fa --very-sensitive -D 40 -R 4 -N 0 -L 10 -i "S,1,0.50"```
+or NINJA-MAX instead, use this combo: ```--no-head -x Ninja97 -S alignments.sam --np 0 --mp "1,1" --rdg "0,1" --rfg "0,1" --score-min "L,0,-0.03" --norc -p 4 -f filtered.fa --very-sensitive -D 40 -R 4 -N 0 -L 10 -i "S,1,0.50"```
 	
-4. Run ninja_parse on the alignments, e.g. with the included 97 taxonomy mapping files masterDB97.map and taxmap97:  
-	```./ninja_parse my_prefix alignments.txt masterDB97.map taxmap97.txt```
+4. (Optional) Run ninja_compact on the alignments, e.g. with the included compressasome:  
+	```./ninja_compact alignments.sam greengenes97.tcf new_alignments.sam```
+	
+5. Run ninja_parse on the alignments, e.g. with the included 97 taxonomy mapping files masterDB97.map and taxmap97:  
+	```./ninja_parse my_prefix new_alignments.sam masterDB97.map taxmap97.txt```
 	
 For legacy table output, add ``--legacy`` to the end of the command above
 (Also, to log which sequences failed to align, add LOG at the very end of both ninja_filter and ninja_parse_filtered)
