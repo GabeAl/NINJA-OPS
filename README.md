@@ -139,7 +139,7 @@ To use the resulting concatesome with bowtie2, simply download bowtie2-build and
 
 bowtie2-build out_preDB.fa DBNAME
 
-To create a taxonomy, simply generate a tab-delimited text file with two columns, the first containing the OTU ids, and the second containing the corresponding taxonomy in string form, semicolon-delimited if compartments are desired in BIOM format. No sorting is required as of v1.4. 
+To include taxonomic annotation in the resulting OTU table, simply generate a tab-delimited text file with two columns, the first containing the OTU ids, and the second containing the corresponding taxonomy in string form, semicolon-delimited if compartments are desired in BIOM format. No sorting is required as of v1.4. The taxonomy file should named DBNAME.taxonomy. The taxonomy file is optional.
 
 You may now place the 6 files starting with the name DBNAME_, as well as DBNAME.db, into a a folder named DBNAME within the "databases" directory of NINJA-OPS. 
 Now NINJA-OPS may be invoked with custom database "DBNAME"
