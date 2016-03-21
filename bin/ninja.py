@@ -581,7 +581,7 @@ def main(argparser):
     logger.log("NINJA-OPS parse time: " + str(t3.timeit(1)) + "\n")
 
     if not retain_intermediates:
-      to_remove = [args['input'], file_prefix + "_filt.fa", pe_file, file_prefix + ".db", alignmentsFile]
+      to_remove = [file_prefix + "_filt.fa", pe_file, file_prefix + ".db", alignmentsFile]
       if not args['suppress_OTU_compaction']:
         to_remove.append(os.path.splitext(alignmentsFile)[0]+'_uncompacted.txt')
       clean(to_remove)
