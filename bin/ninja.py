@@ -6,9 +6,8 @@ import os
 import subprocess
 from subprocess import Popen, PIPE
 import sys
-import gzip
 import shutil
-__version__ = "1.4.1"
+__version__ = "1.5.0"
 
 ###
 #   CLASSES
@@ -169,14 +168,6 @@ def check_fasta(f, logger):
                 return False
         lineNumber += 1
     return True
-
-# Decompresses gzipped file
-def gunzip(filepath):
-  out_filepath = filepath[0:filepath.index('.gz')]
-  with open(out_filepath, 'wb') as f_out, gzip.open(filepath, 'rb') as f_in:
-    # for line in f_in:
-      # f_out.write(line + '\n')
-    shutil.copyfileobj(f_in, f_out)
 
 # Generator for fasta files - returns [(name, seq)]
 # Call using 'with open(file) as f'
@@ -550,7 +541,7 @@ def main(argparser):
     logger.log('NINJA-OPS database directory is ' + databasedir)
 
     masterDBFile = os.path.abspath(os.path.join(databasedir, args['database'] + ".db"))
-    masterFastaFile = os.path.abspath(os.path.join(databasedir, args['database'] + ".fa"))
+    masterFastaFile = os.path.abspath(os.path.join(databasedir, args['database'] + ".tcf"))
     bowtieDatabase = os.path.abspath(os.path.join(databasedir, args['database']))
 
     # Ninja_parse files
@@ -559,11 +550,6 @@ def main(argparser):
     # Post-processing files
     seqOutFile = os.path.join(outdir, "failed_sequences.fna")
     mapOutFile = os.path.join(outdir, "otu_map.txt")
-
-    # Ensure that database fasta has been gunzipped
-    if not os.path.exists(masterFastaFile):
-      logger.log("Warning: This is the first time database " + args['database'] + " has been used. Decompressing concatesome fasta file...")
-      gunzip(masterFastaFile + ".gz")
 
     # Runs ninja_filter, bowtie2 and ninja_parse. Processes ninja results, generating OTU map and a list of failed seqs
     logger.log("Running NINJA-OPS filter...")
