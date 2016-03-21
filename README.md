@@ -116,11 +116,8 @@ You can include e.g, "170 RC" after that to trim at 170 bases and perform revers
 You can append D X.Y to the NINJA_filter commandline, where X is whole read (duplicate) filtering level and Y is the rarity threshold for k-mer filtering.
 3. Run your filtered sequences through bowtie2 or other aligner with headerless SAM output. E.g. for 4 threads (p option) and 97% id (one plus the third parameter in --score-min) on seqs_filtered.fna with the db in directory /bt2db:  
 	```bowtie2-align-s --no-head -x /bt2db/Ninja97 -S alignments.txt --np 0 --mp "1,1" --rdg "0,1" --rfg "0,1" --score-min "L,0,-.03" -k 1 --norc -p 4 -f seqs_filtered.fna```
-	
 For presets instead, specify e.g. ```--preset fast```
-
 or NINJA-MAX instead, use this combo: ```--no-head -x Ninja97 -S alignments.sam --np 0 --mp "1,1" --rdg "0,1" --rfg "0,1" --score-min "L,0,-0.03" --norc -p 4 -f filtered.fa --very-sensitive -D 40 -R 4 -N 0 -L 10 -i "S,1,0.50"```
-	
 4. (Optional) Run ninja_compact on the alignments, e.g. with the included compressasome:  
 	```./ninja_compact alignments.sam greengenes97.tcf new_alignments.sam```
 	
