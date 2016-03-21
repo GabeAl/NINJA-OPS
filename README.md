@@ -130,19 +130,35 @@ For legacy table output, add ``--legacy`` to the end of the command above
 
 ###Building a database
 You can build your own marker gene database for use with NINJA-OPS. To do so, use ninja_prep in the /bin directory. 
-The format of the input FASTA file must respect the formatting considerations outlined in formats_readme.txt in the root directory of NINJA-OPS. 
-Once compiled, run ninja_prep in the following way: 
+The format of the input FASTA file must respect the formatting considerations outlined in formats_readme.txt in the root directory of NINJA-OPS. Other formats may work, but use at your own risk.
 
-ninja_prep in_refs.fa out_preDB.fa DBNAME.db 
+Here is an example workflow for creating a new database using the 99% greengenes 13_8 OTUs, where the input reference FASTA file is called ```99_otus.fasta```:
 
-To use the resulting concatesome with bowtie2, simply download bowtie2-build and run:
+```ninja_prep 99_otus.fasta greengenes99```
 
-bowtie2-build out_preDB.fa DBNAME
+This produces a concatesome FASTA called ```greengenes99.fa``` and a NINJA-OPS db called ```greengenes99.db```. Then build a bowtie2 database for the concatesome using ```bowtie2-build``` like this:
 
-To include taxonomic annotation in the resulting OTU table, simply generate a tab-delimited text file with two columns, the first containing the OTU ids, and the second containing the corresponding taxonomy in string form, semicolon-delimited if compartments are desired in BIOM format. No sorting is required as of v1.4. The taxonomy file should named DBNAME.taxonomy. The taxonomy file is optional.
+```bowtie2-build greengenes99.fa greengenes99```
 
-You may now place the 6 files starting with the name DBNAME_, as well as DBNAME.db, into a a folder named DBNAME within the "databases" directory of NINJA-OPS. 
-Now NINJA-OPS may be invoked with custom database "DBNAME"
+To include taxonomic annotation in your OTU tables, create a tab-delimited text file with two columns, the first containing the OTU ids, and the second containing the corresponding taxonomy in string form. The taxonomy should be semicolon-delimited if compartments are desired in BIOM format. No sorting is required as of v1.4. The taxonomy file should named ```greengenes99.taxonomy```. The taxonomy file is optional.
+
+You may now place all files starting with the name ```greengenes99``` (or whatever your database name is) except for the concatesome file into a folder named DBNAME within the "databases" directory of NINJA-OPS. You may delete the concatesome file. The folder should contain (with the ```.taxonomy``` file optional):
+
+```
+greengenes99.1.bt2
+greengenes99.2.bt2
+greengenes99.3.bt2
+greengenes99.4.bt2
+greengenes99.db
+greengenes99.rev.1.bt2
+greengenes99.rev.2.bt2
+greengenes99.taxonomy
+greengenes99.tcf
+```
+
+Now NINJA-OPS may be invoked using the custom database like this:
+
+```ninja.py -i input.fna -b greengenes99```
 
 
 ###Contact
