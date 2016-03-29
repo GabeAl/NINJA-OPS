@@ -7,6 +7,7 @@ import subprocess
 from subprocess import Popen, PIPE
 import sys
 import shutil
+import multiprocessing
 __version__ = "1.5.0"
 
 ###
@@ -85,7 +86,7 @@ def get_args(p):
                    help = "Maximum total length for paired-end matches. Set this as small as possible (e.g. 400 for 515F-806R primers) [default %(default)s, for 16S]")
     p.add_argument("-p", "--threads",
                    type = int,
-                   default = 4,
+                   default = multiprocessing.cpu_count(),
                    metavar = '',
                    help = "Number of threads/cores to run bowtie2 on [default %(default)s]")
     p.add_argument("-m", "--mode",
