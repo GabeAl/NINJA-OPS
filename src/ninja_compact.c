@@ -20,7 +20,7 @@
 #include <inttypes.h>
 #include <string.h>
 #define LINELEN 1000000
-#define NINJA_VER "1.5.0"
+#define NINJA_VER "1.5.1"
 #define PRINT_USAGE() { \
 	printf( "\nNINJA Is Not Just Another - OTU Picking Solution v" NINJA_VER "\n");\
 	printf( "Post-alignment OTU label compaction program. Usage:\n");\

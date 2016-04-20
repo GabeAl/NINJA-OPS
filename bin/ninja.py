@@ -7,7 +7,7 @@ import subprocess
 from subprocess import Popen, PIPE
 import sys
 import shutil
-__version__ = "1.5.0"
+__version__ = "1.5.1"
 
 ###
 #   CLASSES

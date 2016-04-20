@@ -8,8 +8,8 @@
    Flags: -m64 -O3 -ffast-math -std=gnu99 -fwhole-program ninja_prep.c
    
    This program assumes the user or wrapper script has run an aligner (bowtie2):
-   bowtie2-align-s --no-head -p4 -f reads.fna -x greengenes97 -S align.sam
-   [--np 0 --mp "1,1" --rdg "0,1" --rfg "0,1" --score-min "L,0,-.03" -k 1 --norc]
+   bowtie2-align-s --no-head -p4 -x greengenes97 -f reads.fna -S align.sam
+   [--np 0 --mp "1,1" --rdg "0,1" --rfg "0,1" --score-min "L,0,-.03" --norc -k 1]
    
    Compilation information/directives (GCC):
    Use:     -m64 -Ofast -fwhole-program parse.c 
@@ -23,7 +23,7 @@
 #include <math.h>
 #include <string.h>
 #include <time.h>
-#define NINJA_VER "1.5.0"
+#define NINJA_VER "1.5.1"
 #ifndef CHTOL
 	#define CHTOL 0
 #endif
@@ -56,7 +56,7 @@ inline size_t crBST(char *key, size_t sz, char **String) {
 	char **p = String;
 	while (sz) {
 		size_t w = sz >> 1; 
-		char *ref_s = *(p+w+1), *key_s = key;		
+		char *ref_s = *(p+w+1), *key_s = key;
 		while (*ref_s == *key_s++) if (!*ref_s++) return p+w+1-String; 
 		if (*ref_s < *(key_s-1)) { p+=w+1; sz-=w+1; }
 		else sz = w;
