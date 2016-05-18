@@ -67,6 +67,8 @@ IMPORTANT: Do not copy "bowtie2-align-s" to any other folder (for instance, bt2d
 ###Normal usage
 Simply run `python /path/to/your/ninja/directory/bin/ninja.py` in your command line to put your data through the entire NINJA pipeline. You will have to replace `/path/to/your/ninja/directory/bin/` with the proper filepath to your `ninja.py` file, which is in the `bin` directory in the NINJA-OPS folder.
 
+To download and use more databases, see the readme inside the 'databases' subdirectory. 
+
 Sample commands are as follows:
 
 ```
