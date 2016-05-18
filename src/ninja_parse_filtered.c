@@ -370,30 +370,22 @@ int main ( int argc, char *argv[] )
 	printf("Number of unique samples: %lu, max reads: %lu\n", numSamps, numReads);
     // Processes SAM file generated from bowtie
 	fseeko(ifp, 0, SEEK_END); size_t fsize = ftello(ifp); fseeko(ifp, 0, SEEK_SET); 
-	char *string = malloc(fsize + 1); // To cache file into memory
-	if (string == NULL) {
-		fprintf(stderr, "Insufficient memory for caching input file.\n");
-		return 1;
-	}
-	fread(string, fsize, 1, ifp); //read into string: elems of fsize bytes, 1 elem, using ifp pointer
-	memset(string+fsize,'\0',1);
-	fclose(ifp); // close the file 
-#ifdef PROFILE
-	printf("->Time for read-in: %f\n", ((double) (clock() - start)) / CLOCKS_PER_SEC); start = clock();
-#endif
+
 	// Create OTU table counts matrix
 	unsigned long *OtuTable = calloc(numSamps * ilines, sizeof (unsigned long)), otuIX;
 	if (!OtuTable) {printf("Couldn't allocate OTU table.\n"); return 1;}
 	unsigned long tabs, rix, six, cnt, alignPos, totalReadsCnt = 0, chimeras = 0;
-	char *cix = string - 1, *startS, *curSamp; 
+	//char *cix = string - 1, *startS, 
+	char *curSamp; 
 // Lots each match and duplication count to a separate, fixed filename in the directory
 #ifdef LOGMATCHES
 	FILE *log = fopen("parseLog.txt", "wb");
 	FILE *log2 = fopen("map_seqid_reps.txt", "wb");
 #endif
-	while (*++cix) { // != '\t' && *cix != '\n') { // work through the sample string
-        startS = cix;
-		// lookahead to the read map region
+	// New parser loop
+	char *line = malloc(UINT16_MAX+1), *lineO = line;
+	while (line = fgets(line,UINT16_MAX+1,ifp)) {
+		char *cix = line, *startS = line;
 		tabs = 0; do if (*++cix == '\t') ++tabs; while (tabs < 2);
 		if (*++cix == '*') {
 			if (doLog) fprintf(logFail,"%s",AllSamps[atol(startS)]);
@@ -401,7 +393,6 @@ int main ( int argc, char *argv[] )
 			; continue; // skip to next
 		}
 		do if (*++cix == '\t') ++tabs; while (tabs < 3); // one more tab
-		
 		alignPos = atol(cix);
 		rix = atol(startS);
 		curSamp = *(Seq2samp + rix); // look up rix
@@ -445,10 +436,8 @@ int main ( int argc, char *argv[] )
 #ifdef LOGMATCHES
 		fprintf(log2, "%lu\t%lu\n", rix, amt); 
 #endif
-		while (*++cix != '\n');
 	}
-	free(string);
-
+	free(lineO);
 #ifdef PROFILE
 	printf("->Time for matrix generation: %f\n", ((double) (clock() - start)) / CLOCKS_PER_SEC); start = clock();
 #endif
@@ -494,7 +483,7 @@ int main ( int argc, char *argv[] )
 		}
 		time_t t = time(NULL);
 		struct tm tm = *localtime(&t);
-		fprintf(ofp, "{\n\"id\":null,\n\"format\": \"NINJA-BIOM " NINJA_VER " (BIOM 1.0)\",\n"
+		fprintf(ofp, "{\n\"id\":null,\n\"format\": \"Biological Observation Matrix 1.0.0\",\n"
 		"\"format_url\": \"http://biom-format.org/documentation/format_versions/biom-1.0.html\",\n"
 		"\"type\": \"OTU table\",\n\"generated_by\": \"NINJA v" NINJA_VER "\",\n"
 		"\"date\": \"%d-%s%d-%s%dT%s%d:%s%d:%s%d\",\n", tm.tm_year + 1900, tm.tm_mon + 1 < 10 ? "0" : "", 
