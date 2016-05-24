@@ -88,9 +88,10 @@ unsigned long parse_str_lu_map(FILE * fp, char delim, char *** Col1, unsigned lo
 	fseek(fp, 0, SEEK_END); unsigned long ixSize = ftell(fp); fseek(fp, 0, SEEK_SET); 
 	char *ixStr = malloc(ixSize + 1); // *ixStrp = ixStr; 
 	if (!ixStr) { puts("PSM out of memory.\n"); return 0; }
-	fread(ixStr, ixSize, 1, fp); fclose(fp);
-	unsigned long ilines = 0; char *iix = ixStr - 1, iptr;
-	while ((iptr = *++iix)) iptr != '\n' ?: ++ilines, (void)0;
+	fread(ixStr, 1, ixSize, fp); fclose(fp);
+	ixStr[ixSize] = 0;
+	unsigned long ilines = 0; char *iix = ixStr;
+	while (*iix) ilines+=*iix++=='\n';
 	
 	// Grab values in 'Col1[delim]Col2[\n]' format
 	*Col1 = malloc(ilines * sizeof(char *));
@@ -125,9 +126,10 @@ unsigned long parse_str_str_map(FILE * fp, char delim, char *** Col1, char *** C
 	fseek(fp, 0, SEEK_END); unsigned long ixSize = ftell(fp); fseek(fp, 0, SEEK_SET); 
 	char *ixStr = malloc(ixSize + 1); // *ixStrp = ixStr; 
 	if (!ixStr) { puts("PSM out of memory.\n"); return 0; }
-	fread(ixStr, ixSize, 1, fp); fclose(fp);
-	unsigned long ilines = 0; char *iix = ixStr - 1, iptr;
-	while ((iptr = *++iix)) iptr != '\n' ?: ++ilines, (void)0;
+	fread(ixStr, 1, ixSize, fp); fclose(fp);
+	ixStr[ixSize] = 0;
+	unsigned long ilines = 0; char *iix = ixStr;
+	while (*iix) ilines+=*iix++=='\n';
 	
 	// Grab values in 'Col1[delim]Col2[\n]' format
 	*Col1 = malloc(ilines*sizeof(char*));
@@ -168,7 +170,8 @@ unsigned long parse_strings(FILE *fp, char *** Strings) {
 	fseek(fp, 0, SEEK_END); unsigned long ixSize = ftell(fp); fseek(fp, 0, SEEK_SET); 
 	char *Dump = malloc(ixSize + 1); 
 	if (!Dump) { puts("PS out of memory.\n"); return 0; }
-	fread(Dump, ixSize, 1, fp); fclose(fp);
+	fread(Dump, 1, ixSize, fp); fclose(fp);
+	Dump[ixSize] = 0;
 	unsigned long ilines = 0, curLen = 1000; 
 	*Strings = malloc(curLen * sizeof(char **));
 	char *iix = Dump - 1, *bufP, *Buffer, // = malloc(1000000), *bufP = Buffer,
@@ -550,13 +553,12 @@ int main ( int argc, char *argv[] )
 		if (doTaxmap) free(OtuMap_otus), free(OtuMap_taxa);
 		free(OtuTable);
 		logPass = fopen(outLogP, "rb");
+		if (!logPass) {fprintf(stderr,"Couldn't open logPass\n"); exit(1);}
 		char **queriesPre, **refsPre;
 		unsigned long xlines = 
 			parse_str_str_map(logPass, '\t', &queriesPre, &refsPre);
 		char ***refsP = malloc(xlines*sizeof(*refsP)); 
 		for (size_t i = 0; i < xlines; ++i) refsP[i] = refsPre+i; 
-		//inline int strPcmp(const void *a, const void *b) { return strcmp(**(char ***)a,**(char ***)b); }
-		//qsort(refsP, xlines, sizeof(*refsP), strPcmp);
 		twrqs(refsP,xlines,0);
 		char **queries = malloc(xlines*sizeof(*queries)), **refs = malloc(xlines*sizeof(*refs));
 		for (size_t i = 0; i < xlines; ++i) refs[i] = *refsP[i], 
