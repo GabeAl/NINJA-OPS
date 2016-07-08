@@ -5,4 +5,4 @@ https://sourceforge.net/projects/bowtie-bio/files/bowtie2/2.2.8/
 
 1. Download the appropriate package for your system from the above URL (not source).
 2. Extract the bowtie2-align-s file from the archive into the main NINJA directory (the directory that contains this file).
-3. If using linux, rename the extracted bowtie2-align-s to bowtie2-align-s-linux (big databases can use align-l)
+3. Make sure it's executable by running 'chmod +x bowtie2-align-s' in the directory into which you extracted it.
