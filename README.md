@@ -138,9 +138,11 @@ Here is an example workflow for creating a new database using the 99% greengenes
 
 ```ninja_prep 99_otus.fasta greengenes99```
 
-This produces a concatesome FASTA called ```greengenes99.fa``` and a NINJA-OPS db called ```greengenes99.db```. Then build a bowtie2 database for the concatesome using ```bowtie2-build``` like this:
+This produces a concatesome FASTA called ```greengenes99.fa``` and a NINJA-OPS db called ```greengenes99.db```. Then build a bowtie2 database for the concatesome using ```bowtie2-build-s``` like this:
 
-```bowtie2-build greengenes99.fa greengenes99```
+```bowtie2-build-s greengenes99.fa greengenes99```
+
+(On Linux or Mac, if bowtie is not in your PATH, you may have to copy the bowtie2-build-s binary to the folder with your sequences and run it as ./bowtie2-build-s)
 
 To include taxonomic annotation in your OTU tables, create a tab-delimited text file with two columns, the first containing the OTU ids, and the second containing the corresponding taxonomy in string form. The taxonomy should be semicolon-delimited if compartments are desired in BIOM format. No sorting is required as of v1.4. The taxonomy file should named ```greengenes99.taxonomy```. The taxonomy file is optional.
 
