@@ -1,5 +1,5 @@
 
-##What is NINJA-OPS?
+## What is NINJA-OPS?
 
 ---
 
@@ -15,11 +15,11 @@ Moreover, NINJA is entirely free and open source.
 The latest NINJA version can always be found on Github (https://github.com/GabeAl/NINJA-OPS) or at http://ninja-ops.ninja.
 
 
-##Citing NINJA-OPS
+## Citing NINJA-OPS
 Al-Ghalith GA, Montassier E, Ward HN, Knights D. NINJA-OPS: Fast Accurate Marker Gene Alignment Using Concatenated Ribosomes. PLoS Computational Biology. 2016 Jan;12(1).
 
 
-##Version
+## Version
 ---
 1.5 (March 20, 2016)
 New OTU compaction step using compressed concatesome (compressasome), enabled by default in wrapper. This pools tied OTU assignments into a single arbitrary OTU ID instead of maintaining a distribution across equally-likely OTU candidates. Additionally, NINJA-OPS -m max (NINJA-MAX) settings are now the default speed settings. 
@@ -39,7 +39,7 @@ Improved Stability
 1.0 (July 17th, 2015)  
 Initial submitted version  
 
-##Dependencies
+## Dependencies
 ---
 
 
@@ -49,7 +49,7 @@ Python 2.7 for wrapper
 
 
 
-##Installation
+## Installation
 ---
 
 
@@ -61,10 +61,10 @@ Python 2.7 for wrapper
 
 IMPORTANT: Do not copy "bowtie2-align-s" to any other folder (for instance, bt2db). NINJA-OPS looks for bowtie2 only in the same folder ninja.py is located in, or on the system executable path.
 
-##Instructions
+## Instructions
 ---
 
-###Normal usage
+### Normal usage
 Simply run `python /path/to/your/ninja/directory/bin/ninja.py` in your command line to put your data through the entire NINJA pipeline. You will have to replace `/path/to/your/ninja/directory/bin/` with the proper filepath to your `ninja.py` file, which is in the `bin` directory in the NINJA-OPS folder.
 
 To download and use more databases, see the readme inside the 'databases' subdirectory. 
@@ -102,7 +102,7 @@ python /path/to/ninja.py -i forward.fna,reverse.fna -o ninja -I 600 -t 150 -T 12
 ```
 
 
-###Custom usage
+### Custom usage
 You can also run each step of the ninja pipeline individually. The steps are detailed below.
 
 NOTE: When using Bowtie2, you must point Bowtie2 to the database files by prefix (such as "Ninja97" if your files are Ninja97blabla.bla) with absolute full path. Otherwise, bowtie will fail with internal error #2. Also, any typo in the commandlines given to it will fail with error #2.
@@ -130,7 +130,7 @@ For legacy table output, add ``--legacy`` to the end of the command above
 (Also, to log which sequences failed to align, add LOG at the very end of both ninja_filter and ninja_parse_filtered)
 
 
-###Building a database
+### Building a database
 You can build your own marker gene database for use with NINJA-OPS. To do so, use ninja_prep in the /bin directory. 
 The format of the input FASTA file must respect the formatting considerations outlined in formats_readme.txt in the root directory of NINJA-OPS. Other formats may work, but use at your own risk.
 
@@ -165,13 +165,13 @@ Now NINJA-OPS may be invoked using the custom database like this:
 ```ninja.py -i input.fna -b greengenes99```
 
 
-###Contact
+### Contact
 ---
 
 Created by Gabe Al-Ghalith (algh0022@umn.edu), Emmanuel Montassier, Henry Ward, and Dan Knights* (dknights@umn.edu) in the Knights Lab at the University of Minnesota.
 
 
-Licensing
+## Licensing
 ---
 NINJA-OPS is licensed under the ISC license (included in package). Bowtie2 is distributed under the GPLv3 license. 
 
