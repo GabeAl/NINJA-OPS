@@ -61,10 +61,10 @@ Python 2.7 for wrapper
 
 IMPORTANT: Do not copy "bowtie2-align-s" to any other folder (for instance, bt2db). NINJA-OPS looks for bowtie2 only in the same folder ninja.py is located in, or on the system executable path.
 
-## Instructions
+### Instructions
 ---
 
-### Normal usage
+## Normal usage
 Simply run `python /path/to/your/ninja/directory/bin/ninja.py` in your command line to put your data through the entire NINJA pipeline. You will have to replace `/path/to/your/ninja/directory/bin/` with the proper filepath to your `ninja.py` file, which is in the `bin` directory in the NINJA-OPS folder.
 
 To download and use more databases, see the readme inside the 'databases' subdirectory. 
@@ -102,7 +102,7 @@ python /path/to/ninja.py -i forward.fna,reverse.fna -o ninja -I 600 -t 150 -T 12
 ```
 
 
-### Custom usage
+## Custom usage
 You can also run each step of the ninja pipeline individually. The steps are detailed below.
 
 NOTE: When using Bowtie2, you must point Bowtie2 to the database files by prefix (such as "Ninja97" if your files are Ninja97blabla.bla) with absolute full path. Otherwise, bowtie will fail with internal error #2. Also, any typo in the commandlines given to it will fail with error #2.
@@ -130,7 +130,7 @@ For legacy table output, add ``--legacy`` to the end of the command above
 (Also, to log which sequences failed to align, add LOG at the very end of both ninja_filter and ninja_parse_filtered)
 
 
-### Building a database
+## Building a database
 You can build your own marker gene database for use with NINJA-OPS. To do so, use ninja_prep in the /bin directory. 
 The format of the input FASTA file must respect the formatting considerations outlined in formats_readme.txt in the root directory of NINJA-OPS. Other formats may work, but use at your own risk.
 
