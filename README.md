@@ -58,6 +58,10 @@ Python 2.7 for wrapper
 1. Download and unzip the ninja package.
 2. Download and unzip bowtie2 ( http://sourceforge.net/projects/bowtie-bio/files/bowtie2/ ). If you wish to use a different sequence aligner, you cannot run the wrapper ninja.py. Instructions below.
 3. Copy the executable "bowtie2-align-s" and paste it to the main folder of the ninja package. Alternatively, you can add the bowtie2-align-s executable (or all Bowtie2 executables) to your system PATH variable.
+4. Make the ninja programs executable on your system:
+```
+chmod a+x /path/to/your/ninja/directory/bin/*
+```
 
 IMPORTANT: Do not copy "bowtie2-align-s" to any other folder (for instance, bt2db). NINJA-OPS looks for bowtie2 only in the same folder ninja.py is located in, or on the system executable path.
 
